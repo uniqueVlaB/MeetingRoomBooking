@@ -1,0 +1,59 @@
+<section class="card">
+  <h1>{{ registering() ? 'Create an account' : 'Sign in' }}</h1>
+  <p class="subtitle">
+    {{ registering() ? 'New accounts can view rooms and book slots.' : 'Book a meeting room.' }}
+  </p>
+
+  <form (ngSubmit)="submit()">
+    @if (registering()) {
+      <label>
+        Display name
+        <input
+          name="displayName"
+          required
+          minlength="2"
+          [ngModel]="displayName()"
+          (ngModelChange)="displayName.set($event)"
+          autocomplete="name"
+        />
+      </label>
+    }
+
+    <label>
+      Email
+      <input
+        name="email"
+        type="email"
+        required
+        [ngModel]="email()"
+        (ngModelChange)="email.set($event)"
+        autocomplete="username"
+      />
+    </label>
+
+    <label>
+      Password
+      <input
+        name="password"
+        type="password"
+        required
+        minlength="8"
+        [ngModel]="password()"
+        (ngModelChange)="password.set($event)"
+        [attr.autocomplete]="registering() ? 'new-password' : 'current-password'"
+      />
+    </label>
+
+    @if (error(); as message) {
+      <p class="notice error" role="alert">{{ message }}</p>
+    }
+
+    <button type="submit" class="primary block" [disabled]="busy()">
+      {{ busy() ? 'Please wait…' : registering() ? 'Create account' : 'Sign in' }}
+    </button>
+  </form>
+
+  <button type="button" class="link" (click)="toggleMode()">
+    {{ registering() ? 'I already have an account' : 'Create an account instead' }}
+  </button>
+</section>

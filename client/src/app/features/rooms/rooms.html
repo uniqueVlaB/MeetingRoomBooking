@@ -1,0 +1,36 @@
+<header class="page-head">
+  <div>
+    <h1>Rooms</h1>
+    <p class="subtitle">Choose a room to see which slots are free.</p>
+  </div>
+</header>
+
+@if (loading()) {
+  <p class="muted">Loading rooms…</p>
+} @else if (error(); as message) {
+  <p class="notice error" role="alert">{{ message }}</p>
+} @else if (list().length === 0) {
+  <p class="muted">No rooms yet. An administrator can add one.</p>
+} @else {
+  <ul class="rooms">
+    @for (room of list(); track room.id) {
+      <li>
+        <a class="room" [routerLink]="['/rooms', room.id, 'schedule']">
+          <span class="name">
+            {{ room.name }}
+            @if (!room.isActive) {
+              <span class="tag">Retired</span>
+            }
+          </span>
+          <span class="meta">
+            @if (room.location) {
+              <span>{{ room.location }}</span>
+            }
+            <span>Seats {{ room.capacity }}</span>
+            <span>{{ room.timeSlots.length }} slots/day</span>
+          </span>
+        </a>
+      </li>
+    }
+  </ul>
+}

@@ -1,0 +1,31 @@
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
+import {
+  ApplicationConfig,
+  inject,
+  provideAppInitializer,
+  provideBrowserGlobalErrorListeners,
+} from '@angular/core';
+import { provideRouter, withComponentInputBinding } from '@angular/router';
+import { routes } from './app.routes';
+import { authInterceptor } from './core/auth/auth.interceptor';
+import { AuthService } from './core/auth/auth.service';
+import { AppConfig } from './core/config/app-config.service';
+
+export const appConfig: ApplicationConfig = {
+  providers: [
+    provideBrowserGlobalErrorListeners(),
+
+    // withComponentInputBinding lets route parameters arrive as signal inputs, so a component reads
+    // :roomId as an input() rather than subscribing to the ActivatedRoute.
+    provideRouter(routes, withComponentInputBinding()),
+
+    provideHttpClient(withInterceptors([authInterceptor])),
+
+    provideAppInitializer(async () => {
+      // Order matters: the API's base URL has to be known before anything calls the API, and the
+      // session restore is the first such call.
+      await inject(AppConfig).load();
+      await inject(AuthService).restore();
+    }),
+  ],
+};

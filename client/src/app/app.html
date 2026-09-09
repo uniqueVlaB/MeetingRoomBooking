@@ -1,0 +1,30 @@
+<header class="app-header">
+  <a class="brand" routerLink="/rooms">
+    <span class="brand-mark" aria-hidden="true">▦</span>
+    Meeting Rooms
+  </a>
+
+  @if (auth.isAuthenticated()) {
+    <nav class="nav">
+      <a routerLink="/rooms" routerLinkActive="active">Rooms</a>
+      <a routerLink="/my-bookings" routerLinkActive="active">My bookings</a>
+      @if (auth.isAdmin()) {
+        <a routerLink="/admin" routerLinkActive="active">Admin</a>
+      }
+    </nav>
+
+    <div class="account">
+      <span class="who">
+        {{ auth.displayName() }}
+        @if (auth.isAdmin()) {
+          <span class="badge">Admin</span>
+        }
+      </span>
+      <button type="button" class="ghost" (click)="signOut()">Sign out</button>
+    </div>
+  }
+</header>
+
+<main class="app-main">
+  <router-outlet />
+</main>

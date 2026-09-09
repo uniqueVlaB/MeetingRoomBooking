@@ -1,0 +1,62 @@
+<nav class="crumbs">
+  <a routerLink="/rooms">← All rooms</a>
+</nav>
+
+<header class="page-head">
+  <div>
+    <h1>{{ schedule()?.roomName ?? 'Schedule' }}</h1>
+    @if (schedule(); as loaded) {
+      <p class="subtitle">{{ freeCount() }} of {{ slots().length }} slots free on {{ loaded.date }}</p>
+    }
+  </div>
+
+  <span class="live" [class.on]="isLive()" [title]="isLive() ? 'Live updates connected' : 'Not receiving live updates'">
+    <span class="dot" aria-hidden="true"></span>
+    {{ isLive() ? 'Live' : 'Offline' }}
+  </span>
+</header>
+
+<div class="date-bar">
+  <button type="button" class="ghost" (click)="shiftDate(-1)" aria-label="Previous day">‹</button>
+  <input type="date" [ngModel]="date()" (ngModelChange)="date.set($event)" aria-label="Date" />
+  <button type="button" class="ghost" (click)="shiftDate(1)" aria-label="Next day">›</button>
+</div>
+
+@if (notice(); as message) {
+  <p class="notice" [class.error]="message.kind === 'error'" role="status">{{ message.text }}</p>
+}
+
+@if (loading() && !schedule()) {
+  <p class="muted">Loading schedule…</p>
+} @else if (slots().length === 0) {
+  <p class="muted">This room has no bookable slots.</p>
+} @else {
+  <ul class="slots">
+    @for (slot of slots(); track slot.timeSlotId) {
+      <li class="slot" [class.booked]="slot.isBooked" [class.mine]="isMine(slot)">
+        <span class="time">{{ formatTime(slot.startTime) }} – {{ formatTime(slot.endTime) }}</span>
+
+        <span class="status">
+          @if (slot.isBooked) {
+            <span class="tag">{{ isMine(slot) ? 'Booked by you' : 'Booked' }}</span>
+            @if (!isMine(slot)) {
+              <span class="holder">{{ slot.bookedByDisplayName }}</span>
+            }
+          } @else {
+            <span class="tag free">Free</span>
+          }
+        </span>
+
+        <span class="action">
+          @if (pendingSlotId() === slot.timeSlotId) {
+            <span class="muted">Working…</span>
+          } @else if (!slot.isBooked) {
+            <button type="button" class="primary" (click)="book(slot)">Book</button>
+          } @else if (canCancel(slot)) {
+            <button type="button" class="ghost" (click)="cancel(slot)">Cancel</button>
+          }
+        </span>
+      </li>
+    }
+  </ul>
+}

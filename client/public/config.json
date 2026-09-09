@@ -1,0 +1,4 @@
+{
+  "//": "Runtime configuration, read at start-up rather than baked into the bundle. The deployment workflow overwrites this file with the API's URL, so pointing the client at a different API needs no rebuild. Empty means same-origin, which is what the dev-server proxy provides locally.",
+  "apiBaseUrl": ""
+}

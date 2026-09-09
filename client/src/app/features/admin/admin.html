@@ -1,0 +1,112 @@
+<header class="page-head">
+  <div>
+    <h1>Administration</h1>
+    <p class="subtitle">Manage rooms and see every booking.</p>
+  </div>
+</header>
+
+@if (notice(); as message) {
+  <p class="notice" [class.error]="message.kind === 'error'" role="status">{{ message.text }}</p>
+}
+
+<section class="panel">
+  <h2>Add a room</h2>
+
+  <form (ngSubmit)="createRoom()">
+    <div class="grid">
+      <label>
+        Name
+        <input name="name" required [ngModel]="name()" (ngModelChange)="name.set($event)" />
+      </label>
+
+      <label>
+        Location
+        <input name="location" [ngModel]="location()" (ngModelChange)="location.set($event)" />
+      </label>
+
+      <label>
+        Seats
+        <input type="number" name="capacity" min="1" max="1000"
+               [ngModel]="capacity()" (ngModelChange)="capacity.set($event)" />
+      </label>
+
+      <label>
+        Opens
+        <input type="number" name="openHour" min="0" max="23"
+               [ngModel]="openHour()" (ngModelChange)="openHour.set($event)" />
+      </label>
+
+      <label>
+        Closes
+        <input type="number" name="closeHour" min="1" max="24"
+               [ngModel]="closeHour()" (ngModelChange)="closeHour.set($event)" />
+      </label>
+
+      <label>
+        Slot length (min)
+        <input type="number" name="slotMinutes" min="15" max="240" step="15"
+               [ngModel]="slotMinutes()" (ngModelChange)="slotMinutes.set($event)" />
+      </label>
+    </div>
+
+    <button type="submit" class="primary" [disabled]="busy()">Create room</button>
+  </form>
+</section>
+
+<section class="panel">
+  <h2>Rooms</h2>
+
+  @if (loading()) {
+    <p class="muted">Loading…</p>
+  } @else if (roomList().length === 0) {
+    <p class="muted">No rooms yet.</p>
+  } @else {
+    <ul class="rows">
+      @for (room of roomList(); track room.id) {
+        <li>
+          <span class="primary-cell">
+            <a [routerLink]="['/rooms', room.id, 'schedule']">{{ room.name }}</a>
+            @if (!room.isActive) {
+              <span class="tag">Retired</span>
+            }
+          </span>
+          <span class="muted">{{ room.timeSlots.length }} slots · seats {{ room.capacity }}</span>
+          <span class="actions">
+            <button type="button" class="ghost" [disabled]="busy()" (click)="toggleActive(room)">
+              {{ room.isActive ? 'Retire' : 'Restore' }}
+            </button>
+            <button type="button" class="ghost danger" [disabled]="busy()" (click)="deleteRoom(room)">
+              Delete
+            </button>
+          </span>
+        </li>
+      }
+    </ul>
+  }
+</section>
+
+<section class="panel">
+  <h2>All bookings</h2>
+
+  @if (loading()) {
+    <p class="muted">Loading…</p>
+  } @else if (allBookings().length === 0) {
+    <p class="muted">Nothing is booked.</p>
+  } @else {
+    <ul class="rows">
+      @for (booking of allBookings(); track booking.id) {
+        <li>
+          <span class="primary-cell">
+            {{ booking.slotDate }} · {{ formatTime(booking.startTime) }}–{{ formatTime(booking.endTime) }}
+          </span>
+          <span class="muted">{{ booking.roomName }} · {{ booking.userDisplayName }}</span>
+          <span class="actions">
+            <button type="button" class="ghost" [disabled]="busy()" (click)="cancelBooking(booking)">
+              Cancel
+            </button>
+          </span>
+        </li>
+      }
+    </ul>
+  }
+</section>
