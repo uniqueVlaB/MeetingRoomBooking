@@ -27,6 +27,9 @@ internal sealed class UnitOfWork(AppDbContext dbContext) : IUnitOfWork
     public IRepository<Booking> Bookings { get; } = new Repository<Booking>(dbContext);
 
     /// <inheritdoc />
+    public IRepository<RefreshToken> RefreshTokens { get; } = new Repository<RefreshToken>(dbContext);
+
+    /// <inheritdoc />
     public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) =>
         this.dbContext.SaveChangesAsync(cancellationToken);
 }

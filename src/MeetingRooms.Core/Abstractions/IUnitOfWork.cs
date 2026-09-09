@@ -21,6 +21,9 @@ public interface IUnitOfWork
     /// <summary>Bookings of a slot on a date.</summary>
     IRepository<Booking> Bookings { get; }
 
+    /// <summary>Refresh tokens issued to users.</summary>
+    IRepository<RefreshToken> RefreshTokens { get; }
+
     /// <summary>Commits every staged change.</summary>
     /// <param name="cancellationToken">Cancels the operation.</param>
     /// <returns>The number of rows affected.</returns>

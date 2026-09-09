@@ -20,6 +20,7 @@ public static class DependencyInjection
 
         services.AddScoped<IBookingService, BookingService>();
         services.AddScoped<IRoomService, RoomService>();
+        services.AddScoped<IRefreshTokenService, RefreshTokenService>();
 
         services.AddValidatorsFromAssemblyContaining<CreateRoomRequestValidator>();
 
