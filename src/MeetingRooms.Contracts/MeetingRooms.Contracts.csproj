@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Request and response shapes exchanged over HTTP and broadcast over SignalR. Kept in their own
+    project so the API, the tests and any future consumer agree on one definition, and so entities
+    never leak across the wire.
+  -->
+
+</Project>

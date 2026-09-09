@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Integration tests against a real SQL Server. The concurrency guarantee is a database guarantee —
+    a filtered unique index and the specific errors it raises — so the in-memory and SQLite providers
+    would pass while proving nothing. See docs/concurrency.md.
+  -->
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!-- Test classes are documented with <remarks> where it matters, not by rule. -->
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Testcontainers.MsSql" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\MeetingRooms.Api\MeetingRooms.Api.csproj" />
+    <ProjectReference Include="..\..\src\MeetingRooms.Infrastructure.SQL\MeetingRooms.Infrastructure.SQL.csproj" />
+  </ItemGroup>
+
+</Project>

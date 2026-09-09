@@ -1,0 +1,28 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+    <File Path="CLAUDE.md" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Packages.props" />
+    <File Path="README.md" />
+  </Folder>
+  <Folder Name="/Solution Items/docs/">
+    <File Path="docs/concurrency.md" />
+    <File Path="docs/deployment.md" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/MeetingRooms.Api/MeetingRooms.Api.csproj" />
+    <Project Path="src/MeetingRooms.Contracts/MeetingRooms.Contracts.csproj" />
+    <Project Path="src/MeetingRooms.Core/MeetingRooms.Core.csproj" />
+  </Folder>
+  <Folder Name="/src/Infrastructure/">
+    <Project Path="src/MeetingRooms.Infrastructure.SQL/MeetingRooms.Infrastructure.SQL.csproj" />
+  </Folder>
+  <Folder Name="/src/Orchestration/">
+    <Project Path="src/MeetingRooms.AppHost/MeetingRooms.AppHost.csproj" />
+    <Project Path="src/MeetingRooms.ServiceDefaults/MeetingRooms.ServiceDefaults.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MeetingRooms.Tests/MeetingRooms.Tests.csproj" />
+  </Folder>
+</Solution>

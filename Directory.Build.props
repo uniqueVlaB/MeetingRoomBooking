@@ -1,0 +1,28 @@
+<Project>
+
+  <!--
+    Build settings shared by every project in the solution. Keeping them here rather than repeating
+    them in each .csproj means a new project inherits the same strictness automatically, and the
+    target framework can be moved in one place.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!--
+      The booking rules are subtle enough that a warning scrolling past unnoticed is a real risk:
+      a nullability warning around the conflict-handling path could hide a lost race.
+    -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+
+    <!--
+      Public types carry XML documentation. The task asks for code that is suitable for review, and
+      the generated XML also feeds the OpenAPI document that Scalar renders.
+    -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+</Project>

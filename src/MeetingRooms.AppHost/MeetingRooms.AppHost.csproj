@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    .NET Aspire AppHost: the development-time orchestrator. It starts SQL Server, the API and the
+    Angular dev server together and wires the connection strings and secrets between them.
+
+    Note that this project is for local development only. Deployment targets Azure Web Apps via the
+    GitHub Actions workflows in .github/workflows, not Aspire's container-based publishing.
+  -->
+
+  <Sdk Name="Aspire.AppHost.Sdk" Version="13.5.3" />
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <UserSecretsId>meetingrooms-apphost</UserSecretsId>
+    <!-- Generated Projects.* metadata is not documented; the rule would fail the build. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.AppHost" />
+    <PackageReference Include="Aspire.Hosting.JavaScript" />
+    <PackageReference Include="Aspire.Hosting.SqlServer" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MeetingRooms.Api\MeetingRooms.Api.csproj" />
+  </ItemGroup>
+
+</Project>

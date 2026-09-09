@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Domain model, persistence abstractions and the booking rules. No web dependency, and no SQL
+    Server dependency either: the provider-specific knowledge of what a unique-index violation looks
+    like lives behind ISlotConflictDetector and is implemented in MeetingRooms.Infrastructure.SQL.
+  -->
+
+  <ItemGroup>
+    <!-- Brings Entity Framework Core with it; the entities derive from the Identity base types. -->
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
+    <PackageReference Include="FluentValidation" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MeetingRooms.Contracts\MeetingRooms.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>
