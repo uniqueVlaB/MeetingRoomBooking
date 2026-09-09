@@ -6,8 +6,8 @@ namespace MeetingRooms.Contracts.Bookings;
 /// <param name="TimeSlotId">The slot to book.</param>
 /// <param name="SlotDate">The date to book it for.</param>
 public sealed record CreateBookingRequest(
-    [property: Required] Guid TimeSlotId,
-    [property: Required] DateOnly SlotDate);
+    [Required] Guid TimeSlotId,
+    [Required] DateOnly SlotDate);
 
 /// <summary>
 /// A booking, as returned from the API and broadcast over SignalR.

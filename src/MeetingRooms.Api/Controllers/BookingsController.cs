@@ -63,9 +63,10 @@ public sealed class BookingsController(
         // booking that did not actually happen.
         await this.notifier.SlotBookedAsync(result.Value, cancellationToken);
 
-        return this.CreatedAtAction(
-            nameof(this.GetMyBookingsAsync),
-            new { bookingId = result.Value.Id },
+        // There is no "get one booking" endpoint, so Location points at the schedule this booking
+        // changed, which is the resource a client actually wants to look at next.
+        return this.Created(
+            $"/api/rooms/{result.Value.RoomId}/schedule?date={result.Value.SlotDate:yyyy-MM-dd}",
             result.Value);
     }
 

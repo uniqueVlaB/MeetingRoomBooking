@@ -16,6 +16,16 @@ namespace MeetingRooms.Api.Controllers;
 [Tags("Rooms")]
 public sealed class RoomsController(IRoomService roomService) : ControllerBase
 {
+    /// <summary>
+    /// Route name for the single-room endpoint.
+    /// </summary>
+    /// <remarks>
+    /// A named route rather than <c>CreatedAtAction(nameof(GetRoomAsync))</c>: ASP.NET Core strips
+    /// the <c>Async</c> suffix from action names by default, so the <c>nameof</c> would not match
+    /// and URL generation would throw — turning a successful creation into a 500.
+    /// </remarks>
+    private const string GetRoomRouteName = "GetRoom";
+
     private readonly IRoomService roomService = roomService;
 
     /// <summary>Lists rooms.</summary>
@@ -40,7 +50,7 @@ public sealed class RoomsController(IRoomService roomService) : ControllerBase
     /// <param name="roomId">The room to read.</param>
     /// <param name="cancellationToken">Cancels the operation.</param>
     /// <returns>The room.</returns>
-    [HttpGet("{roomId:guid}")]
+    [HttpGet("{roomId:guid}", Name = GetRoomRouteName)]
     [EndpointSummary("Get room")]
     [ProducesResponseType<RoomResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType<ProblemDetails>(StatusCodes.Status401Unauthorized)]
@@ -97,10 +107,7 @@ public sealed class RoomsController(IRoomService roomService) : ControllerBase
         var result = await this.roomService.CreateRoomAsync(request, cancellationToken);
 
         return result.IsSuccess && result.Value is not null
-            ? this.CreatedAtAction(
-                nameof(this.GetRoomAsync),
-                new { roomId = result.Value.Id },
-                result.Value)
+            ? this.CreatedAtRoute(GetRoomRouteName, new { roomId = result.Value.Id }, result.Value)
             : result.ToErrorResult(this);
     }
 

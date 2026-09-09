@@ -7,16 +7,16 @@ namespace MeetingRooms.Contracts.Auth;
 /// <param name="DisplayName">Name shown next to the user's bookings.</param>
 /// <param name="Password">Chosen password.</param>
 public sealed record RegisterRequest(
-    [property: Required, EmailAddress] string Email,
-    [property: Required, StringLength(128, MinimumLength = 2)] string DisplayName,
-    [property: Required, StringLength(128, MinimumLength = 8)] string Password);
+    [Required, EmailAddress] string Email,
+    [Required, StringLength(128, MinimumLength = 2)] string DisplayName,
+    [Required, StringLength(128, MinimumLength = 8)] string Password);
 
 /// <summary>Request to sign in.</summary>
 /// <param name="Email">The registered email address.</param>
 /// <param name="Password">The account password.</param>
 public sealed record LoginRequest(
-    [property: Required, EmailAddress] string Email,
-    [property: Required] string Password);
+    [Required, EmailAddress] string Email,
+    [Required] string Password);
 
 /// <summary>
 /// A signed-in session.

@@ -28,8 +28,8 @@ public sealed record RoomResponse(
 /// <param name="StartTime">Local start time.</param>
 /// <param name="EndTime">Local end time, which must be after the start.</param>
 public sealed record TimeSlotRequest(
-    [property: Required] TimeOnly StartTime,
-    [property: Required] TimeOnly EndTime);
+    [Required] TimeOnly StartTime,
+    [Required] TimeOnly EndTime);
 
 /// <summary>Request to create a room together with its daily slots.</summary>
 /// <param name="Name">Display name, unique among rooms.</param>
@@ -37,10 +37,10 @@ public sealed record TimeSlotRequest(
 /// <param name="Capacity">How many people the room seats.</param>
 /// <param name="TimeSlots">The daily slot template. A room with no slots cannot be booked.</param>
 public sealed record CreateRoomRequest(
-    [property: Required, StringLength(128, MinimumLength = 1)] string Name,
-    [property: StringLength(256)] string? Location,
-    [property: Range(1, 1000)] int Capacity,
-    [property: Required, MinLength(1)] IReadOnlyList<TimeSlotRequest> TimeSlots);
+    [Required, StringLength(128, MinimumLength = 1)] string Name,
+    [StringLength(256)] string? Location,
+    [Range(1, 1000)] int Capacity,
+    [Required, MinLength(1)] IReadOnlyList<TimeSlotRequest> TimeSlots);
 
 /// <summary>
 /// Request to update a room's details.
@@ -54,9 +54,9 @@ public sealed record CreateRoomRequest(
 /// <param name="Capacity">How many people the room seats.</param>
 /// <param name="IsActive">Whether the room accepts new bookings.</param>
 public sealed record UpdateRoomRequest(
-    [property: Required, StringLength(128, MinimumLength = 1)] string Name,
-    [property: StringLength(256)] string? Location,
-    [property: Range(1, 1000)] int Capacity,
+    [Required, StringLength(128, MinimumLength = 1)] string Name,
+    [StringLength(256)] string? Location,
+    [Range(1, 1000)] int Capacity,
     bool IsActive);
 
 /// <summary>One slot on one date, with its current booking state.</summary>
