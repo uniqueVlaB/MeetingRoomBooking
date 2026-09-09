@@ -1,0 +1,100 @@
+name: Deploy to Azure
+
+# Every push to main is deployed, but only after the same build and test gate CI uses. The
+# concurrency test is part of that gate, so a change that reintroduces double-booking cannot reach
+# Azure.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  # One deployment at a time; a newer commit waits rather than racing an in-flight publish.
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    name: Build and test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build
+        run: dotnet build MeetingRoomBooking.slnx --configuration Release
+
+      - name: Test
+        # Real SQL Server via Testcontainers, using the runner's Docker daemon.
+        run: dotnet test MeetingRoomBooking.slnx --configuration Release --no-build --logger "console;verbosity=normal"
+
+  deploy-api:
+    name: Deploy the API
+    needs: build-test
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Publish
+        run: dotnet publish src/MeetingRooms.Api/MeetingRooms.Api.csproj --configuration Release --output ./publish
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ vars.AZURE_API_APP_NAME }}
+          publish-profile: ${{ secrets.AZURE_API_PUBLISH_PROFILE }}
+          package: ./publish
+
+  deploy-client:
+    name: Deploy the client
+    needs: build-test
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install
+        working-directory: client
+        run: npm ci
+
+      - name: Build
+        working-directory: client
+        run: npm run build
+
+      - name: Point the client at the API
+        # The API URL is configuration, not a build input: rewriting this one file is enough, and the
+        # same bundle could be pointed at a different API without rebuilding. web.config ships from
+        # public/ automatically and carries the IIS rewrite that makes deep links work.
+        working-directory: client/dist/meeting-rooms-client/browser
+        run: |
+          printf '{ "apiBaseUrl": "%s" }\n' "${{ vars.API_BASE_URL }}" > config.json
+          echo "config.json:"
+          cat config.json
+          test -f web.config || { echo "web.config missing from the build output"; exit 1; }
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ vars.AZURE_CLIENT_APP_NAME }}
+          publish-profile: ${{ secrets.AZURE_CLIENT_PUBLISH_PROFILE }}
+          package: client/dist/meeting-rooms-client/browser

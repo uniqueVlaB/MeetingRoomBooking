@@ -115,19 +115,19 @@ public static class Extensions
     {
         ArgumentNullException.ThrowIfNull(app);
 
-        // Health endpoints expose information about dependencies, so they are not published in
-        // environments where anonymous callers can reach them.
-        if (app.Environment.IsDevelopment())
-        {
-            // All checks must pass for the service to be ready to accept traffic.
-            app.MapHealthChecks("/health");
+        // Mapped in every environment, unlike the Aspire template, which restricts them to
+        // Development. App Service needs a URL to probe, and the deployment guide tells a reviewer
+        // to check one. The default response writer emits only "Healthy" or "Unhealthy", so no
+        // information about dependencies is disclosed to an anonymous caller.
 
-            // Only "live" checks must pass; a failure here means the process should be restarted.
-            app.MapHealthChecks("/alive", new HealthCheckOptions
-            {
-                Predicate = registration => registration.Tags.Contains(LiveTag),
-            });
-        }
+        // All checks must pass for the service to be ready to accept traffic.
+        app.MapHealthChecks("/health");
+
+        // Only "live" checks must pass; a failure here means the process should be restarted.
+        app.MapHealthChecks("/alive", new HealthCheckOptions
+        {
+            Predicate = registration => registration.Tags.Contains(LiveTag),
+        });
 
         return app;
     }

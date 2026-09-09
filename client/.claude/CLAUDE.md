@@ -54,3 +54,34 @@ You are an expert in TypeScript, Angular, and scalable web application developme
 - Design services around a single responsibility
 - Use the `providedIn: 'root'` option for singleton services
 - Use the `inject()` function instead of constructor injection
+
+## This project specifically
+
+See the repository root `CLAUDE.md` for the rules that span both halves of the system.
+
+### Structure
+
+- `core/config` — `AppConfig`, loaded from `public/config.json` at start-up. **All API URLs come
+  from `AppConfig.apiBaseUrl`.** Never hardcode a host or import an `environment` file for it; the
+  API lives on a different origin in Azure and the URL is configuration, not a build input.
+- `core/auth` — session, HTTP interceptor, route guards.
+- `core/api` — thin wrappers over the REST endpoints, returning promises.
+- `core/realtime` — the shared SignalR connection.
+- `core/models` — TypeScript mirrors of `MeetingRooms.Contracts`. They must match the server exactly;
+  a drifting field name fails silently at runtime rather than at build time.
+- `features/*` — one lazily loaded component per screen.
+
+### Rules that are easy to break
+
+- **The access token stays in memory.** Never write it to `localStorage` or `sessionStorage`. Surviving
+  a reload is the HttpOnly refresh cookie's job, via `AuthService.restore()`.
+- Requests to `/api/auth/*` need `withCredentials: true`, or the refresh cookie is neither stored nor
+  sent. Everything else gets its `Authorization` header from `authInterceptor` — do not add it by hand.
+- `AuthService.restore()` memoises its in-flight promise. Refresh tokens rotate on use, so concurrent
+  refreshes would invalidate each other and sign the user out. Do not remove the memoisation.
+- After a SignalR reconnect, **rejoin the group**. Membership does not survive a reconnect, and the
+  symptom — updates silently stopping — looks like nothing is wrong.
+- A `409` from `POST /api/bookings` is an expected outcome, not a failure: another user won the slot.
+  Show a plain explanation and reload the schedule; never surface it as an error dump.
+- Dates are `yyyy-MM-dd` strings and times are `HH:mm:ss` strings. Do not convert them to `Date`;
+  neither value carries a time zone, and converting invents one.
