@@ -28,11 +28,22 @@ export const appConfig: ApplicationConfig = {
 
     provideHttpClient(withInterceptors([authInterceptor])),
 
-    provideAppInitializer(async () => {
+    provideAppInitializer(() => {
+      // Both inject() calls happen synchronously, before either await. inject() only works inside
+      // an active injection context, and provideAppInitializer's factory is only run within one for
+      // its synchronous portion -- an async function resumes its post-await continuation as a
+      // microtask, by which point the context has already been popped. inject(AuthService) written
+      // after the first await throws NG0203 for exactly that reason; capturing both services first
+      // and only then awaiting keeps every inject() call in the synchronous part.
+      const config = inject(AppConfig);
+      const auth = inject(AuthService);
+
       // Order matters: the API's base URL has to be known before anything calls the API, and the
       // session restore is the first such call.
-      await inject(AppConfig).load();
-      await inject(AuthService).restore();
+      return (async () => {
+        await config.load();
+        await auth.restore();
+      })();
     }),
   ],
 };
