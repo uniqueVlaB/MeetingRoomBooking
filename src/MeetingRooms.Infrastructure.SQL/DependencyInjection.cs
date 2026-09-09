@@ -38,7 +38,7 @@ public static class DependencyInjection
         builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 
         // Stateless, so a singleton; it only inspects exceptions.
-        builder.Services.AddSingleton<ISlotConflictDetector, SqlServerSlotConflictDetector>();
+        builder.Services.AddSingleton<IDatabaseConflictDetector, SqlServerConflictDetector>();
 
         return builder;
     }

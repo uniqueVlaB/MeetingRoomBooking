@@ -26,7 +26,7 @@ public interface IUnitOfWork
     /// <returns>The number of rows affected.</returns>
     /// <exception cref="Exception">
     /// Provider exceptions propagate; callers that write bookings must ask
-    /// <see cref="ISlotConflictDetector"/> whether the failure was a lost race.
+    /// <see cref="IDatabaseConflictDetector"/> whether the failure was a lost race.
     /// </exception>
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
