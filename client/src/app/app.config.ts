@@ -4,6 +4,7 @@ import {
   inject,
   provideAppInitializer,
   provideBrowserGlobalErrorListeners,
+  provideZonelessChangeDetection,
 } from '@angular/core';
 import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { routes } from './app.routes';
@@ -14,6 +15,12 @@ import { AppConfig } from './core/config/app-config.service';
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
+
+    // Every component here is signals + OnPush, and zone.js is not a dependency (package.json never
+    // added it). Without this, bootstrapApplication throws "NG0908: zoneless requires either
+    // Zone.js or an explicit zoneless provider" -- caught silently by main.ts's .catch(), which
+    // logs to the console but leaves <app-root> empty. That is the black screen.
+    provideZonelessChangeDetection(),
 
     // withComponentInputBinding lets route parameters arrive as signal inputs, so a component reads
     // :roomId as an input() rather than subscribing to the ActivatedRoute.
