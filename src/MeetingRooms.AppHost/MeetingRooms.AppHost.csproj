@@ -1,8 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    .NET Aspire AppHost: the development-time orchestrator. It starts SQL Server, the API and the
-    Angular dev server together and wires the connection strings and secrets between them.
+    .NET Aspire AppHost: the development-time orchestrator. It starts the API and the Angular dev
+    server together and wires the connection strings and secrets between them, against a local SQL
+    Server instance rather than a Docker container; see the comment on the database resource in
+    AppHost.cs for why.
 
     Note that this project is for local development only. Deployment targets Azure Web Apps via the
     GitHub Actions workflows in .github/workflows, not Aspire's container-based publishing.
@@ -20,7 +22,6 @@
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting.AppHost" />
     <PackageReference Include="Aspire.Hosting.JavaScript" />
-    <PackageReference Include="Aspire.Hosting.SqlServer" />
   </ItemGroup>
 
   <ItemGroup>

@@ -28,11 +28,13 @@ deployed as two Azure Web Apps.
 ## Commands
 
 ```bash
-# Run everything (SQL Server, API, Angular). Add UseLocalSql when Docker is not running.
+# Run everything (API, Angular). Connects to local SQL Server (LocalDB by default -- see
+# src/MeetingRooms.AppHost/appsettings.json), never a Docker container; see the comment on the
+# database resource in AppHost.cs for why.
 dotnet run --project src/MeetingRooms.AppHost
 
 dotnet build MeetingRoomBooking.slnx      # warnings are errors
-dotnet test                               # needs Docker, or set MEETINGROOMS_TEST_SQL
+dotnet test                               # needs Docker (for Testcontainers), or set MEETINGROOMS_TEST_SQL
 
 cd client && npm start                    # client alone, proxying /api and /hubs
 cd client && npm run build

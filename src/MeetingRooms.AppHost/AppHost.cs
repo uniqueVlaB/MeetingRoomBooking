@@ -1,5 +1,6 @@
+using System.Diagnostics;
 using MeetingRooms.AppHost;
-using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 // Must match MeetingRooms.Infrastructure.SQL.DependencyInjection.DatabaseResourceName, which is what
 // the API reads its connection string under. It is repeated rather than shared because the Aspire
@@ -21,29 +22,14 @@ var seed = builder.AddSeedParameters();
 // different engine would mean the one behaviour this system must get right was never exercised
 // locally.
 //
-// A container is the default, but "UseLocalSql=true" points the API at an existing SQL Server or
-// LocalDB instead, so the solution still runs when Docker is not available.
-var useLocalSql = builder.Configuration.GetValue("UseLocalSql", defaultValue: false);
-
-IResourceBuilder<IResourceWithConnectionString> database;
-IResourceBuilder<IResource>? databaseToWaitFor = null;
-
-if (useLocalSql)
-{
-    // Reads ConnectionStrings:meetingrooms-db from this project's configuration or user secrets.
-    database = builder.AddConnectionString(DatabaseResourceName);
-}
-else
-{
-    var sqlDatabase = builder
-        .AddSqlServer("sql")
-        // Survives a restart of the AppHost, so seeded rooms and accounts are not lost between runs.
-        .WithDataVolume("meetingrooms-sql-data")
-        .AddDatabase(DatabaseResourceName);
-
-    database = sqlDatabase;
-    databaseToWaitFor = sqlDatabase;
-}
+// Always a local SQL Server instance (LocalDB by default -- see appsettings.json), never a
+// Docker-hosted container. A container's data volume outlives the container itself: if a crashed
+// or force-killed run leaves the volume behind, and Aspire's generated "sa" password parameter has
+// since changed, the next container boots cleanly but every connection then fails with error 18456
+// "password did not match" -- confusing to diagnose, and easy to trigger from nothing more than an
+// unclean shutdown. A local instance has no such lifecycle to manage, and it is what the design-time
+// migration tooling (AppDbContextFactory) already assumes.
+var database = builder.AddConnectionString(DatabaseResourceName);
 
 // ── API ───────────────────────────────────────────────────────────────────────────────────────
 
@@ -54,13 +40,44 @@ var api = builder
     .WithEnvironment("Jwt__Issuer", jwt.Issuer)
     .WithEnvironment("Jwt__Audience", jwt.Audience)
     .WithEnvironment("Seed__Admin__Password", seed.AdminPassword)
-    .WithEnvironment("Seed__User__Password", seed.UserPassword);
+    .WithEnvironment("Seed__User__Password", seed.UserPassword)
+    // Gives the dashboard's Health column a real status instead of "Unknown", and is what the
+    // Scalar shortcut below waits on before it enables itself. /health is mapped in every
+    // environment (see MeetingRooms.ServiceDefaults), so this works the same way it will in Azure.
+    .WithHttpHealthCheck("/health");
 
-if (databaseToWaitFor is not null)
-{
-    // Only meaningful for the container: an external connection string has nothing to start.
-    api = api.WaitFor(databaseToWaitFor);
-}
+#if DEBUG
+// A one-click way to open the API's Scalar documentation from the Aspire dashboard, instead of
+// hunting down whatever HTTPS port Aspire assigned this run. Enabled only once the health check
+// above reports healthy, so clicking it before start-up doesn't open a page that isn't serving
+// anything yet.
+api.WithCommand(
+    name: "scalar-api-docs",
+    displayName: "Scalar API Docs",
+    executeCommand: async _ =>
+    {
+        try
+        {
+            var url = $"{api.GetEndpoint("https").Url}/scalar/v1";
+            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+            return new ExecuteCommandResult { Success = true };
+        }
+        catch (Exception exception)
+        {
+            // ErrorMessage is obsolete in this Aspire version in favour of the general-purpose
+            // Message -- the reference project's identical code predates that rename.
+            return new ExecuteCommandResult { Success = false, Message = exception.ToString() };
+        }
+    },
+    commandOptions: new CommandOptions
+    {
+        UpdateState = context => context.ResourceSnapshot.HealthStatus == HealthStatus.Healthy
+            ? ResourceCommandState.Enabled
+            : ResourceCommandState.Disabled,
+        IconName = "Document",
+        IconVariant = IconVariant.Filled,
+    });
+#endif
 
 // ── Angular client ────────────────────────────────────────────────────────────────────────────
 

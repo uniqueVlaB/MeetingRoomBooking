@@ -39,7 +39,7 @@ what lets the domain say "somebody else got the slot" without knowing what datab
 | Concern | Choice |
 | --- | --- |
 | Concurrency | Filtered unique index; booking is one INSERT, a violation becomes `409` |
-| Database | SQL Server locally (Aspire container or LocalDB), Azure SQL in production |
+| Database | A local SQL Server instance (LocalDB by default) in development, Azure SQL in production |
 | Real-time | SignalR, backed by Azure SignalR Service when a connection string is present |
 | Auth | ASP.NET Identity, roles `User` / `Admin`, JWT access token + rotating refresh cookie |
 | API docs | OpenAPI with Scalar at `/scalar/v1` in Development |
@@ -47,8 +47,8 @@ what lets the domain say "somebody else got the slot" without knowing what datab
 
 ## Getting started
 
-Prerequisites: **.NET 10 SDK**, **Node.js 20+**, and either **Docker** or a local **SQL Server /
-LocalDB**.
+Prerequisites: **.NET 10 SDK**, **Node.js 20+**, and a local **SQL Server** instance — LocalDB, which
+ships with Visual Studio and the SQL Server tooling, is used by default and needs no setup.
 
 ```bash
 git clone <repository-url>
@@ -67,15 +67,17 @@ Seeded accounts (Development only):
 | Administrator | `admin@meetingrooms.local` | `Admin!23456` |
 | User | `user@meetingrooms.local` | `User!23456` |
 
-### Without Docker
+### Using a different local SQL Server instance
 
-Aspire starts SQL Server in a container by default. To use an existing SQL Server or LocalDB
-instead:
+The AppHost always connects to a local SQL Server instance rather than starting one in a Docker
+container — a container's data volume can outlive the container, and a stale volume paired with a
+regenerated `sa` password produces a confusing "login failed" error on every subsequent run for no
+reason a developer caused. LocalDB is the default; to point at a named instance instead (SQL Server
+Express, for example):
 
 ```powershell
 cd src/MeetingRooms.AppHost
-dotnet user-secrets set "ConnectionStrings:meetingrooms-db" "Server=(localdb)\MSSQLLocalDB;Database=MeetingRooms;Trusted_Connection=True;TrustServerCertificate=True"
-dotnet user-secrets set "UseLocalSql" "true"
+dotnet user-secrets set "ConnectionStrings:meetingrooms-db" "Server=.\SQLEXPRESS;Database=MeetingRooms;Trusted_Connection=True;TrustServerCertificate=True"
 cd ../..
 dotnet run --project src/MeetingRooms.AppHost
 ```
@@ -101,6 +103,10 @@ dotnet user-secrets set "Parameters:SeedUserPassword"  "<password>"
 | Health | <https://localhost:7188/health> |
 | Aspire dashboard | printed at start-up, with a login token |
 
+The API resource in the Aspire dashboard also carries a **Scalar API Docs** command — a one-click
+way to open the docs once the health check goes green, instead of hunting down whatever port Aspire
+assigned this run.
+
 ## Tests
 
 ```bash
@@ -108,8 +114,9 @@ dotnet test
 ```
 
 The tests need a **real SQL Server**, because the behaviour under test is a filtered unique index
-and the specific errors it raises — an in-memory provider would pass while proving nothing. By
-default Testcontainers starts a throwaway instance, which requires Docker.
+and the specific errors it raises — an in-memory provider would pass while proving nothing. This is
+separate from the AppHost's local instance above: by default the test suite starts its own throwaway
+SQL Server in a Docker container via Testcontainers, torn down after the run.
 
 Without Docker, point the tests at an existing server. The fixture still creates and drops its own
 uniquely named database, so it never touches existing data:
