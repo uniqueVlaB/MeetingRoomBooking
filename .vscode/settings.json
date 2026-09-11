@@ -1,0 +1,5 @@
+{
+  "dotnet.defaultSolution": "MeetingRoomBooking.slnx",
+  "dotnet.backgroundAnalysis.analyzerDiagnosticsScope": "fullSolution",
+  "dotnet.backgroundAnalysis.compilerDiagnosticsScope": "fullSolution"
+}

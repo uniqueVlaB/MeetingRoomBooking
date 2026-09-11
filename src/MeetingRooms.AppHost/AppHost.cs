@@ -64,8 +64,6 @@ api.WithCommand(
         }
         catch (Exception exception)
         {
-            // ErrorMessage is obsolete in this Aspire version in favour of the general-purpose
-            // Message -- the reference project's identical code predates that rename.
             return new ExecuteCommandResult { Success = false, Message = exception.ToString() };
         }
     },
