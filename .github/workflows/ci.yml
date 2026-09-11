@@ -1,11 +1,11 @@
 name: CI
 
-# Runs on every pull request and on pushes to any branch except main. Pushes to main are handled by
-# deploy.yml, which runs the same build and test gate before it deploys anything.
+# Runs on every pull request and on pushes to any branch except Deploy. Pushes to Deploy are handled
+# by deploy.yml, which runs the same build and test gate before it deploys anything.
 on:
   pull_request:
   push:
-    branches-ignore: [main]
+    branches-ignore: [Deploy]
   workflow_dispatch:
 
 concurrency:

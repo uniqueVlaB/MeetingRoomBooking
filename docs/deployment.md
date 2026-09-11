@@ -1,8 +1,9 @@
 # Deploying to Azure
 
 The system deploys as **two Azure Web Apps** — one for the API, one for the Angular client — plus
-**Azure SQL Database** and **Azure SignalR Service**. Pushing to `main` builds, tests and deploys
-both apps automatically.
+**Azure SQL Database** and **Azure SignalR Service**. Pushing to `Deploy` builds, tests and deploys
+both apps automatically. `Deploy` is a dedicated deployment branch, separate from `main`, so a
+deploy is always a deliberate push rather than a side effect of every merge to `main`.
 
 Aspire is a development-time orchestrator only. It is not used to publish: the task calls for Azure
 Web Apps, whereas Aspire's own publishing targets Container Apps.
@@ -99,7 +100,7 @@ under the Web App's Configuration → General settings.
 
 ## 5. Deploy
 
-Push to `main`. [`deploy.yml`](../.github/workflows/deploy.yml) builds, runs the full test suite —
+Push to `Deploy`. [`deploy.yml`](../.github/workflows/deploy.yml) builds, runs the full test suite —
 including the concurrency test — and only then deploys the two apps in parallel. A change that
 reintroduces double-booking cannot reach Azure, because the gate fails first.
 

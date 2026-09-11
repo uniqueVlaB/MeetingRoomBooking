@@ -10,8 +10,9 @@ working, and covers the failures that actually happen.
 
 ## Shape of the deployment
 
-`.github/workflows/deploy.yml` runs on every push to `main`: build and test first — including the
-concurrency test — then two parallel deploys, API and client, each with a publish profile.
+`.github/workflows/deploy.yml` runs on every push to `Deploy` (a dedicated deployment branch,
+separate from `main`): build and test first — including the concurrency test — then two parallel
+deploys, API and client, each with a publish profile.
 
 Aspire is **not** used to deploy. It orchestrates local development only; the deployment target is
 Azure Web Apps, whereas Aspire's own publishing targets Container Apps.

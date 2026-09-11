@@ -1,11 +1,12 @@
 name: Deploy to Azure
 
-# Every push to main is deployed, but only after the same build and test gate CI uses. The
+# Every push to Deploy is deployed, but only after the same build and test gate CI uses. The
 # concurrency test is part of that gate, so a change that reintroduces double-booking cannot reach
-# Azure.
+# Azure. main is left alone deliberately -- Deploy is a separate, deployment-only branch, merged
+# into (or rebased onto) whenever a reviewed main is ready to ship.
 on:
   push:
-    branches: [main]
+    branches: [Deploy]
   workflow_dispatch:
 
 concurrency:

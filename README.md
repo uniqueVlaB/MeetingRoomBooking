@@ -151,7 +151,7 @@ to Tuesday.
 
 ## Deployment
 
-Pushing to `main` runs the full test suite and then deploys both apps to Azure. A change that
+Pushing to `Deploy` runs the full test suite and then deploys both apps to Azure. A change that
 reintroduces double-booking cannot reach production, because the gate fails first.
 
 Setting up the Azure resources, app settings and GitHub secrets is covered step by step in
