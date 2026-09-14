@@ -47,8 +47,11 @@ public sealed class ScheduleClock(TimeProvider timeProvider, IOptions<BookingOpt
         {
             throw new InvalidOperationException(
                 $"'{identifier}' is not a time zone this machine recognises. Set " +
-                $"'{BookingOptions.SectionName}:{nameof(BookingOptions.TimeZone)}' to an IANA " +
-                "identifier such as 'Europe/Kyiv', or to 'UTC'.",
+                $"'{BookingOptions.SectionName}:{nameof(BookingOptions.TimeZone)}' to 'UTC', or to " +
+                "an identifier this machine's TimeZoneInfo does resolve -- on Windows, prefer the " +
+                "Windows-native name (e.g. 'FLE Standard Time') over its IANA equivalent, since IANA " +
+                "resolution depends on OS-bundled data that can predate a tzdata rename. See " +
+                "docs/deployment.md's \"time-zone identifier caveat\" section.",
                 exception);
         }
     }
