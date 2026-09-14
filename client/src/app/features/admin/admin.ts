@@ -1,8 +1,9 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { BookingsService } from '../../core/api/bookings.service';
 import { RoomsService } from '../../core/api/rooms.service';
+import { formatDayShort, relativeDay } from '../../core/format/date';
 import { formatSlotTime } from '../../core/format/time';
 import { describeError } from '../../core/http/describe-error';
 import { Booking, Room, TimeSlotRequest } from '../../core/models';
@@ -29,8 +30,29 @@ export class AdminComponent {
   protected readonly rooms = signal<Room[]>([]);
   protected readonly bookings = signal<Booking[]>([]);
   protected readonly loading = signal(true);
-  protected readonly busy = signal(false);
   protected readonly notice = signal<Notice | null>(null);
+
+  /** Whether the create-room form is submitting. */
+  protected readonly creating = signal(false);
+
+  /**
+   * The room or booking whose action is in flight.
+   *
+   * Replaces a single page-wide "busy" flag. That flag disabled every button on the screen for the
+   * duration of any one of them, so retiring one room greyed out the other twenty rooms and every
+   * booking underneath, and nothing said which row was actually working.
+   */
+  protected readonly pendingRowId = signal<string | null>(null);
+
+  /**
+   * The row whose destructive action is waiting for a second click.
+   *
+   * Deleting a room and cancelling another user's booking were each a single click with no way
+   * back, sitting beside a button that only retires. Asking again in place -- rather than through
+   * `confirm()` -- keeps the question next to the row it is about, and keeps the user's focus on
+   * the button they pressed instead of handing it to a dialog and taking it away again.
+   */
+  protected readonly confirmingId = signal<string | null>(null);
 
   /**
    * Whether the last load failed.
@@ -41,12 +63,29 @@ export class AdminComponent {
    */
   protected readonly loadFailed = signal(false);
 
+  /** Placeholder rows drawn while a panel loads. */
+  protected readonly skeletonRows = [0, 1, 2];
+
   protected readonly name = signal('');
   protected readonly location = signal('');
   protected readonly capacity = signal(6);
   protected readonly openHour = signal(9);
   protected readonly closeHour = signal(17);
   protected readonly slotMinutes = signal(60);
+
+  /**
+   * The slots the current form values would create.
+   *
+   * Shown before submitting, because the three numbers that produce them do not obviously say how
+   * many slots come out -- and a closing hour at or before the opening one silently produces none,
+   * which the server then rejects as a validation error after a round trip.
+   */
+  protected readonly slotPreview = computed(() => this.buildSlots());
+
+  /** Whether the form is complete enough to submit. */
+  protected readonly canCreate = computed(
+    () => this.name().trim().length > 0 && this.slotPreview().length > 0,
+  );
 
   constructor() {
     void this.load();
@@ -57,9 +96,33 @@ export class AdminComponent {
     return formatSlotTime(time);
   }
 
+  /** Formats "2026-09-20" as "Today" where that applies, and "Sun 20 Sept" otherwise. */
+  protected formatDate(date: string): string {
+    return relativeDay(date) ?? formatDayShort(date);
+  }
+
+  /** Whether a row has a destructive action awaiting confirmation. */
+  protected isConfirming(id: string): boolean {
+    return this.confirmingId() === id;
+  }
+
+  /** Whether a row's action is in flight. */
+  protected isPending(id: string): boolean {
+    return this.pendingRowId() === id;
+  }
+
+  /** Asks again before a destructive action, or abandons the question. */
+  protected toggleConfirm(id: string): void {
+    this.confirmingId.update((current) => (current === id ? null : id));
+  }
+
   /** Creates a room from the form. */
   protected async createRoom(): Promise<void> {
-    this.busy.set(true);
+    if (!this.canCreate()) {
+      return;
+    }
+
+    this.creating.set(true);
     this.notice.set(null);
 
     try {
@@ -67,7 +130,7 @@ export class AdminComponent {
         name: this.name(),
         location: this.location() || null,
         capacity: this.capacity(),
-        timeSlots: this.buildSlots(),
+        timeSlots: this.slotPreview(),
       });
 
       this.rooms.update((current) =>
@@ -79,13 +142,13 @@ export class AdminComponent {
     } catch (error) {
       this.notice.set(failure(describeError(error)));
     } finally {
-      this.busy.set(false);
+      this.creating.set(false);
     }
   }
 
   /** Retires or restores a room. */
   protected async toggleActive(room: Room): Promise<void> {
-    this.busy.set(true);
+    this.pendingRowId.set(room.id);
     this.notice.set(null);
 
     try {
@@ -99,21 +162,23 @@ export class AdminComponent {
       this.rooms.update((current) =>
         current.map((candidate) => (candidate.id === updated.id ? updated : candidate)),
       );
+      this.notice.set(info(`${updated.isActive ? 'Restored' : 'Retired'} ${updated.name}.`));
     } catch (error) {
       this.notice.set(failure(describeError(error)));
     } finally {
-      this.busy.set(false);
+      this.pendingRowId.set(null);
     }
   }
 
   /** Deletes a room, or retires it if it carries booking history. */
   protected async deleteRoom(room: Room): Promise<void> {
-    this.busy.set(true);
+    this.confirmingId.set(null);
+    this.pendingRowId.set(room.id);
     this.notice.set(null);
 
     try {
       await this.roomsApi.deleteRoom(room.id);
-      await this.load();
+      await this.refresh();
 
       // The server decides between deleting and retiring, and answers 204 either way, so the
       // reloaded list is what says which happened.
@@ -129,29 +194,43 @@ export class AdminComponent {
     } catch (error) {
       this.notice.set(failure(describeError(error)));
     } finally {
-      this.busy.set(false);
+      this.pendingRowId.set(null);
     }
   }
 
-  /** Cancels somebody else's booking. */
+  /** Cancels another user's booking. */
   protected async cancelBooking(booking: Booking): Promise<void> {
-    this.busy.set(true);
+    this.confirmingId.set(null);
+    this.pendingRowId.set(booking.id);
     this.notice.set(null);
 
     try {
       await this.bookingsApi.cancel(booking.id);
       this.bookings.update((current) => current.filter((candidate) => candidate.id !== booking.id));
+      this.notice.set(info(`Cancelled the ${booking.roomName} booking.`));
     } catch (error) {
       this.notice.set(failure(describeError(error)));
     } finally {
-      this.busy.set(false);
+      this.pendingRowId.set(null);
     }
+  }
+
+  /** Reloads rooms and bookings after a failed load. */
+  protected async retry(): Promise<void> {
+    this.notice.set(null);
+    await this.load();
   }
 
   /** Expands the opening hours into a list of slots. */
   private buildSlots(): TimeSlotRequest[] {
     const slots: TimeSlotRequest[] = [];
     const step = this.slotMinutes();
+
+    // Guards a pathological form value rather than a plausible one: a step of zero would never
+    // advance the loop, so the page would hang rather than show an empty preview.
+    if (step <= 0) {
+      return slots;
+    }
 
     for (
       let minutes = this.openHour() * 60;
@@ -164,18 +243,12 @@ export class AdminComponent {
     return slots;
   }
 
-  /** Loads rooms and bookings. */
+  /** Loads rooms and bookings, showing the loading state while it happens. */
   private async load(): Promise<void> {
     this.loading.set(true);
 
     try {
-      const [rooms, bookings] = await Promise.all([
-        this.roomsApi.listRooms(),
-        this.bookingsApi.listAll(),
-      ]);
-
-      this.rooms.set(rooms);
-      this.bookings.set(bookings);
+      await this.refresh();
       this.loadFailed.set(false);
     } catch (error) {
       this.notice.set(failure(describeError(error)));
@@ -185,10 +258,21 @@ export class AdminComponent {
     }
   }
 
-  /** Reloads rooms and bookings after a failed load. */
-  protected async retry(): Promise<void> {
-    this.notice.set(null);
-    await this.load();
+  /**
+   * Re-reads both lists without blanking the panels.
+   *
+   * Used after an action the user has just taken, where replacing the page with placeholder rows
+   * would be a flash of nothing in answer to a click that succeeded. Its error is left to escape to
+   * the caller, which already has a message to report.
+   */
+  private async refresh(): Promise<void> {
+    const [rooms, bookings] = await Promise.all([
+      this.roomsApi.listRooms(),
+      this.bookingsApi.listAll(),
+    ]);
+
+    this.rooms.set(rooms);
+    this.bookings.set(bookings);
   }
 }
 

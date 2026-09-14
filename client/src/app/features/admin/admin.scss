@@ -54,15 +54,43 @@
   }
 }
 
+// What the six form fields add up to, read before submitting rather than discovered after.
+.preview {
+  margin: 0 0 1rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+
+  // The form cannot be submitted in this state, and a disabled button with no stated reason is a
+  // dead end.
+  &.warn {
+    color: var(--danger);
+  }
+}
+
+.day {
+  font-weight: 550;
+}
+
 .actions {
   display: flex;
+  align-items: center;
   gap: 0.4rem;
+  flex-wrap: wrap;
   justify-self: end;
 }
 
-.danger:hover {
+.danger:hover:not(:disabled) {
   border-color: var(--danger);
   color: var(--danger);
+}
+
+// Armed: the next click on this button carries it out, so it stops looking like the ordinary
+// action beside it.
+.danger.armed {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-weight: 550;
 }
 
 @media (max-width: 640px) {
@@ -73,5 +101,18 @@
 
   .actions {
     justify-self: start;
+  }
+}
+
+.skeleton {
+  .ghost-bar {
+    width: 70%;
+  }
+
+  .action {
+    width: 5rem;
+    height: 1.9rem;
+    border-radius: 7px;
+    justify-self: end;
   }
 }

@@ -79,7 +79,26 @@
       </label>
     </div>
 
-    <button type="submit" class="primary" [disabled]="busy()">Create room</button>
+    <!--
+      What those six numbers add up to, before the form is sent. Three of them combine into a slot
+      count nobody works out in their head, and a closing hour at or before the opening one produces
+      no slots at all -- which the server rejects, but only after a round trip and in its own words.
+    -->
+    <p class="preview" [class.warn]="slotPreview().length === 0" role="status" aria-live="polite">
+      @if (slotPreview().length > 0) {
+        Creates <strong>{{ slotPreview().length }}</strong> slot{{
+          slotPreview().length === 1 ? '' : 's'
+        }}, {{ formatTime(slotPreview()[0].startTime) }} to
+        {{ formatTime(slotPreview()[slotPreview().length - 1].endTime) }}.
+      } @else {
+        These hours produce no slots. The closing hour must be at least one slot length after the
+        opening hour.
+      }
+    </p>
+
+    <button type="submit" class="primary" [disabled]="creating() || !canCreate()">
+      {{ creating() ? 'Creating…' : 'Create room' }}
+    </button>
   </form>
 </section>
 
@@ -87,14 +106,25 @@
   <h2>Rooms</h2>
 
   @if (loading()) {
-    <p class="muted" role="status" aria-live="polite">Loading…</p>
+    <ul class="rows skeleton" role="status" aria-label="Loading rooms">
+      @for (row of skeletonRows; track row) {
+        <li aria-hidden="true">
+          <span class="ghost-bar"></span>
+          <span class="ghost-bar"></span>
+          <span class="ghost-bar action"></span>
+        </li>
+      }
+    </ul>
   } @else if (loadFailed()) {
-    <p class="muted">
-      Rooms could not be loaded.
-      <button type="button" class="link" (click)="retry()">Try again</button>
-    </p>
+    <div class="empty">
+      <p class="empty-title">Rooms could not be loaded.</p>
+      <button type="button" class="primary" (click)="retry()">Try again</button>
+    </div>
   } @else if (rooms().length === 0) {
-    <p class="muted">No rooms yet.</p>
+    <div class="empty">
+      <p class="empty-title">No rooms yet.</p>
+      <p class="empty-detail">Add one with the form above.</p>
+    </div>
   } @else {
     <ul class="rows">
       @for (room of rooms(); track room.id) {
@@ -105,19 +135,49 @@
               <span class="tag">Retired</span>
             }
           </span>
-          <span class="muted">{{ room.timeSlots.length }} slots · seats {{ room.capacity }}</span>
+          <span class="muted">
+            {{ room.timeSlots.length }} slots · seats {{ room.capacity }}
+            @if (room.location) {
+              · {{ room.location }}
+            }
+          </span>
+
+          <!--
+            Only this row's own action disables it. A single page-wide flag used to grey out every
+            button on the screen for the duration of any one of them, which read as the page having
+            broken rather than as one row working.
+          -->
           <span class="actions">
-            <button type="button" class="ghost" [disabled]="busy()" (click)="toggleActive(room)">
+            <button
+              type="button"
+              class="ghost"
+              [disabled]="isPending(room.id)"
+              [attr.aria-busy]="isPending(room.id)"
+              (click)="toggleActive(room)"
+            >
               {{ room.isActive ? 'Retire' : 'Restore' }}
             </button>
+
+            <!--
+              Two clicks, in the same button, rather than one click or a dialog. Deleting was
+              previously indistinguishable in effort from retiring, immediately next to it, and
+              irreversible. Changing this button's label instead of replacing it keeps a keyboard
+              user on the control they just pressed.
+            -->
             <button
               type="button"
               class="ghost danger"
-              [disabled]="busy()"
-              (click)="deleteRoom(room)"
+              [class.armed]="isConfirming(room.id)"
+              [disabled]="isPending(room.id)"
+              [attr.aria-busy]="isPending(room.id)"
+              (click)="isConfirming(room.id) ? deleteRoom(room) : toggleConfirm(room.id)"
             >
-              Delete
+              {{ isConfirming(room.id) ? 'Confirm delete' : 'Delete' }}
             </button>
+
+            @if (isConfirming(room.id)) {
+              <button type="button" class="link" (click)="toggleConfirm(room.id)">Keep</button>
+            }
           </span>
         </li>
       }
@@ -129,33 +189,52 @@
   <h2>All bookings</h2>
 
   @if (loading()) {
-    <p class="muted" role="status" aria-live="polite">Loading…</p>
+    <ul class="rows skeleton" role="status" aria-label="Loading bookings">
+      @for (row of skeletonRows; track row) {
+        <li aria-hidden="true">
+          <span class="ghost-bar"></span>
+          <span class="ghost-bar"></span>
+          <span class="ghost-bar action"></span>
+        </li>
+      }
+    </ul>
   } @else if (loadFailed()) {
-    <p class="muted">
-      Bookings could not be loaded.
-      <button type="button" class="link" (click)="retry()">Try again</button>
-    </p>
+    <div class="empty">
+      <p class="empty-title">Bookings could not be loaded.</p>
+      <button type="button" class="primary" (click)="retry()">Try again</button>
+    </div>
   } @else if (bookings().length === 0) {
-    <p class="muted">Nothing is booked.</p>
+    <div class="empty">
+      <p class="empty-title">Nothing is booked.</p>
+    </div>
   } @else {
     <ul class="rows">
       @for (booking of bookings(); track booking.id) {
         <li>
           <span class="primary-cell">
-            {{ booking.slotDate }} · {{ formatTime(booking.startTime) }}–{{
-              formatTime(booking.endTime)
-            }}
+            <span class="day">{{ formatDate(booking.slotDate) }}</span>
+            {{ formatTime(booking.startTime) }}–{{ formatTime(booking.endTime) }}
           </span>
           <span class="muted">{{ booking.roomName }} · {{ booking.userDisplayName }}</span>
+
           <span class="actions">
+            <!-- Cancelling falls on somebody else, so it is asked twice, as deleting a room is. -->
             <button
               type="button"
-              class="ghost"
-              [disabled]="busy()"
-              (click)="cancelBooking(booking)"
+              class="ghost danger"
+              [class.armed]="isConfirming(booking.id)"
+              [disabled]="isPending(booking.id)"
+              [attr.aria-busy]="isPending(booking.id)"
+              (click)="
+                isConfirming(booking.id) ? cancelBooking(booking) : toggleConfirm(booking.id)
+              "
             >
-              Cancel
+              {{ isConfirming(booking.id) ? 'Confirm cancel' : 'Cancel' }}
             </button>
+
+            @if (isConfirming(booking.id)) {
+              <button type="button" class="link" (click)="toggleConfirm(booking.id)">Keep</button>
+            }
           </span>
         </li>
       }
