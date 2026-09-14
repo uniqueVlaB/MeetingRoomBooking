@@ -19,6 +19,10 @@ public sealed class RefreshTokenConfiguration : IEntityTypeConfiguration<Refresh
         builder.Property(t => t.TokenHash).HasMaxLength(64).IsRequired();
         builder.HasIndex(t => t.TokenHash).IsUnique();
 
+        // Rotation reads a token and then revokes it; the rowversion is what stops two concurrent
+        // refreshes from both redeeming the same one. See the remarks on RefreshToken.RowVersion.
+        builder.Property(t => t.RowVersion).IsRowVersion();
+
         builder.HasOne(t => t.User)
             .WithMany(u => u.RefreshTokens)
             .HasForeignKey(t => t.UserId)

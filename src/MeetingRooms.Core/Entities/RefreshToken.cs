@@ -37,6 +37,20 @@ public sealed class RefreshToken
     /// <summary>When the token was revoked, either by rotation or by signing out.</summary>
     public DateTimeOffset? RevokedUtc { get; set; }
 
+    /// <summary>
+    /// SQL Server <c>rowversion</c>. Guards redemption against two requests rotating the same token
+    /// at once.
+    /// </summary>
+    /// <remarks>
+    /// Redeeming is a read-then-write — check the token is live, then revoke it — so without this
+    /// two concurrent refreshes presenting the same cookie would both pass the check and both issue
+    /// a replacement, turning one captured token into two live sessions and defeating the replay
+    /// detection described above. The rowversion makes the second writer fail instead, which is the
+    /// same complementary pairing the <see cref="Booking"/> entity describes: the unique index
+    /// guards inserts, the rowversion guards updates.
+    /// </remarks>
+    public byte[]? RowVersion { get; set; }
+
     /// <summary>Whether the token may still be redeemed at the given moment.</summary>
     /// <param name="now">The current time, passed in so the check is testable.</param>
     /// <returns><see langword="true"/> if the token is neither revoked nor expired.</returns>

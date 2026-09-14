@@ -75,7 +75,20 @@ public sealed class RefreshTokenService(
         var replacement = this.CreateToken(existing.UserId);
         this.unitOfWork.RefreshTokens.Add(replacement.Entity);
 
-        await this.unitOfWork.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await this.unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Redeeming is a read-then-write, so two requests presenting the same cookie can both
+            // pass the check above. The rowversion makes the second save fail, and it must fail
+            // closed: allowing it would issue two replacements for one token, which is precisely
+            // the replay this design exists to detect. Same message as an unknown token, so a
+            // caller learns nothing from which branch it took.
+            return OperationResult<RotatedRefreshToken>.Forbidden(
+                "That session has expired. Please sign in again.");
+        }
 
         return OperationResult<RotatedRefreshToken>.Success(
             new RotatedRefreshToken(existing.UserId, replacement.RawToken, replacement.Entity.ExpiresUtc));
@@ -102,7 +115,16 @@ public sealed class RefreshTokenService(
         }
 
         existing.RevokedUtc = this.timeProvider.GetUtcNow();
-        await this.unitOfWork.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            await this.unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Somebody else revoked or rotated it first. The token is dead either way, which is all
+            // signing out asked for.
+        }
     }
 
     /// <summary>Hashes a raw token for storage and lookup.</summary>
