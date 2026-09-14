@@ -61,7 +61,12 @@ public sealed class BookingsController(
 
         // Broadcast only after the write has committed, so nobody is told a slot is taken by a
         // booking that did not actually happen.
-        await this.notifier.SlotBookedAsync(result.Value, cancellationToken);
+        //
+        // Deliberately not the request's token: the booking is already committed, so this work is no
+        // longer the caller's to cancel. Passing it would mean a client that closed its tab between
+        // the commit and the send left every other viewer looking at a stale schedule -- the exact
+        // failure the live-update requirement is about.
+        await this.notifier.SlotBookedAsync(result.Value, CancellationToken.None);
 
         // There is no "get one booking" endpoint, so Location points at the schedule this booking
         // changed, which is the resource a client actually wants to look at next.
@@ -95,7 +100,9 @@ public sealed class BookingsController(
             return result.ToErrorResult(this);
         }
 
-        await this.notifier.SlotReleasedAsync(result.Value, cancellationToken);
+        // Not the request's token, for the same reason as in BookAsync: the cancellation has
+        // committed, and other viewers must hear about it even if this caller has gone away.
+        await this.notifier.SlotReleasedAsync(result.Value, CancellationToken.None);
 
         return this.NoContent();
     }
