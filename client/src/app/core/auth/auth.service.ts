@@ -20,7 +20,7 @@ export class AuthService {
   private readonly config = inject(AppConfig);
 
   private readonly sessionSignal = signal<AuthSession | null>(null);
-  private restoreInFlight: Promise<void> | null = null;
+  private restoreInFlight: Promise<boolean> | null = null;
 
   /** The current session, or null when signed out. */
   readonly session = this.sessionSignal.asReadonly();
@@ -42,11 +42,15 @@ export class AuthService {
   /**
    * Attempts to resume a session from the refresh cookie.
    *
-   * Called once at start-up and again by the route guards. The in-flight promise is memoised so
-   * that several guards resolving at once produce one request rather than a burst — and, because
-   * refresh tokens rotate on use, a burst would invalidate its own tokens and sign the user out.
+   * Called at start-up, by the route guards, and by the HTTP interceptor when a request comes back
+   * 401. The in-flight promise is memoised so that several callers resolving at once produce one
+   * request rather than a burst — and, because refresh tokens rotate on use and the server now
+   * refuses a second redemption of the same one, a burst would invalidate its own tokens and sign
+   * the user out.
+   *
+   * @returns Whether a session is held afterwards.
    */
-  restore(): Promise<void> {
+  restore(): Promise<boolean> {
     this.restoreInFlight ??= this.refresh().finally(() => {
       this.restoreInFlight = null;
     });
@@ -75,12 +79,14 @@ export class AuthService {
   }
 
   /** Exchanges the refresh cookie for a new access token. */
-  private async refresh(): Promise<void> {
+  private async refresh(): Promise<boolean> {
     try {
       this.sessionSignal.set(await this.post<AuthSession>('refresh', {}));
+      return true;
     } catch {
       // No cookie, or an expired one. Being signed out is the correct outcome, not an error.
       this.sessionSignal.set(null);
+      return false;
     }
   }
 

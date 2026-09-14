@@ -13,7 +13,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 {
     /// <summary>Name of the unique index that makes double-booking impossible.</summary>
     /// <remarks>
-    /// Referenced by <c>SqlServerSlotConflictDetector</c> when deciding whether a failed save was a
+    /// Referenced by <c>SqlServerConflictDetector</c> when deciding whether a failed save was a
     /// lost booking race, and asserted on by the concurrency tests. Naming the index explicitly —
     /// rather than accepting EF's generated name — is what lets the detector distinguish this
     /// conflict from any other unique violation.

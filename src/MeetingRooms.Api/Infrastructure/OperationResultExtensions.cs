@@ -21,7 +21,6 @@ public static class OperationResultExtensions
     /// <param name="result">The failed result.</param>
     /// <param name="controller">The controller producing the response.</param>
     /// <returns>A problem-details result carrying the appropriate status code.</returns>
-    /// <exception cref="InvalidOperationException">Thrown if the result actually succeeded.</exception>
     public static ActionResult ToErrorResult<TValue>(
         this OperationResult<TValue> result,
         ControllerBase controller)
@@ -35,9 +34,18 @@ public static class OperationResultExtensions
             OperationOutcome.NotFound => (StatusCodes.Status404NotFound, "Not found"),
             OperationOutcome.Forbidden => (StatusCodes.Status403Forbidden, "Not allowed"),
             OperationOutcome.Invalid => (StatusCodes.Status400BadRequest, "Invalid request"),
-            _ => throw new InvalidOperationException("A successful result has no error representation."),
+
+            // Callers reach here through "!IsSuccess || Value is null", so a success that somehow
+            // carries no value arrives too. Throwing would turn it into an opaque 500; 500 is the
+            // right code, but it should say what happened.
+            _ => (StatusCodes.Status500InternalServerError, "Unexpected result"),
         };
 
-        return controller.Problem(detail: result.Detail, statusCode: status, title: title);
+        var detail = result.Detail
+            ?? (result.IsSuccess
+                ? "The operation reported success but produced no result."
+                : null);
+
+        return controller.Problem(detail: detail, statusCode: status, title: title);
     }
 }

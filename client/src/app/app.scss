@@ -68,6 +68,13 @@
   max-width: 68rem;
   margin: 0 auto;
   padding: 1.5rem;
+
+  // Focused programmatically on every route change so the new page is announced and Tab continues
+  // inside it. It is not keyboard-reachable, so a ring here would mark something the user cannot
+  // act on; the page heading underneath is what tells them where they are.
+  &:focus {
+    outline: none;
+  }
 }
 
 @media (max-width: 640px) {
@@ -78,5 +85,14 @@
 
   .account {
     margin-left: 0;
+  }
+
+  // Ellipsised rather than wrapped: a long display name was pushing Sign out onto its own line and
+  // doubling the height of a header that is sticky, costing a phone a third of the viewport.
+  .who {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }

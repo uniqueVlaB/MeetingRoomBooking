@@ -77,10 +77,38 @@ migration that rebuilds the index would silently disable the guarantee. The same
 
 ## Where `rowversion` fits
 
-`Booking.RowVersion` and `Room.RowVersion` are SQL Server `rowversion` columns, giving EF Core
-optimistic concurrency on **updates**. That covers a different race — two clients cancelling or
-editing the same existing row — and is complementary to, not a substitute for, the unique index,
-which is what protects **creation**.
+`Booking.RowVersion`, `Room.RowVersion` and `RefreshToken.RowVersion` are SQL Server `rowversion`
+columns, giving EF Core optimistic concurrency on **updates**. That covers a different race — two
+clients changing the same existing row — and is complementary to, not a substitute for, the unique
+index, which is what protects **creation**.
+
+## The same discipline elsewhere: refresh-token rotation
+
+Redeeming a refresh token is a read-then-write: check the token is live, then revoke it and issue a
+replacement. That is the shape this document spends its length arguing against, and it was present
+in `RefreshTokenService.RotateAsync` with nothing guarding it. Two requests presenting the same
+cookie — two tabs resuming at once, or a retried request — could both pass the check and both mint
+a replacement. One captured cookie then becomes two independent live sessions, and the replay
+detection the design promises never fires, because nothing ever sees a revoked token presented
+twice.
+
+There is no natural unique index to lean on here, so the guard is `rowversion` on `RefreshToken`:
+the second writer's save fails with `DbUpdateConcurrencyException`, and the service **fails closed**,
+returning the same "session expired" answer an unknown token gets. Failing closed matters — a
+rotation that cannot prove it was the only one must not hand out a session.
+
+`ConcurrentRefreshTests.SimultaneousRefreshes_RedeemTheTokenOnlyOnce` fires eight refreshes at one
+cookie and asserts one `200`, seven `401`s, no `5xx`, and exactly one live token left for that
+account.
+
+## Broadcasting after the write
+
+The second half of the requirement — every viewer sees the change immediately — has a failure of
+its own worth naming. `BookingsController` broadcasts through `IBookingNotifier` **after** the write
+commits, and passes `CancellationToken.None` rather than the request's token. The booking is already
+committed by that point, so the send is no longer the caller's to cancel: with the request token, a
+client that closed its tab in the window between commit and send would take the broadcast with it,
+leaving every other viewer on a stale schedule with no error anywhere to show for it.
 
 ## How the conflict reaches the client
 
@@ -104,6 +132,7 @@ controller and a 200 in another.
 | `ActiveSlotIndexTests` | The database rejects a second active booking, allows the same slot on another date, frees the slot after a cancellation, and does not mistake a duplicate room name for a slot conflict. |
 | `ConcurrentBookingTests.TwentySimultaneousRequests_CreateExactlyOneBooking` | 20 authenticated clients held at a barrier and released together produce exactly one `201`, nineteen `409`s, no `5xx`, and one active row. |
 | `ConcurrentBookingTests.RepeatedRaces_NeverProduceASecondBooking` | Five further rounds, because one green run is weak evidence about a race. |
+| `ConcurrentRefreshTests.SimultaneousRefreshes_RedeemTheTokenOnlyOnce` | Eight refreshes carrying one cookie produce one session, not two. |
 | `BookingEndpointsTests.CancellingABooking_LetsAnotherUserBookTheSlot` | The end-to-end version: held, blocked with 409, cancelled, then bookable again. |
 
 Observed output:

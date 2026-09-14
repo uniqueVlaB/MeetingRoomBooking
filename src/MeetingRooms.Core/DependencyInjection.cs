@@ -3,6 +3,7 @@ using MeetingRooms.Core.Abstractions;
 using MeetingRooms.Core.Services;
 using MeetingRooms.Core.Validation;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace MeetingRooms.Core;
 
@@ -25,19 +26,13 @@ public static class DependencyInjection
         services.AddValidatorsFromAssemblyContaining<CreateRoomRequestValidator>();
 
         // Injected rather than read from DateTime.UtcNow so that date rules -- "no booking in the
-        // past" -- can be tested without waiting for midnight.
-        services.TryAddSingletonTimeProvider();
+        // past" -- can be tested without waiting for midnight. TryAdd so a test that has already
+        // substituted a fake clock keeps it.
+        services.TryAddSingleton(TimeProvider.System);
+
+        // Stateless over the clock and the configured time zone, so a singleton.
+        services.TryAddSingleton<ScheduleClock>();
 
         return services;
-    }
-
-    /// <summary>Registers the system clock unless a test has already substituted one.</summary>
-    /// <param name="services">The service collection.</param>
-    private static void TryAddSingletonTimeProvider(this IServiceCollection services)
-    {
-        if (services.All(descriptor => descriptor.ServiceType != typeof(TimeProvider)))
-        {
-            services.AddSingleton(TimeProvider.System);
-        }
     }
 }

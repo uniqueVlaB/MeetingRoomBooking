@@ -177,6 +177,11 @@ namespace MeetingRooms.Infrastructure.SQL.Database.Migrations
                     b.Property<DateTimeOffset?>("RevokedUtc")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
                     b.Property<string>("TokenHash")
                         .IsRequired()
                         .HasMaxLength(64)

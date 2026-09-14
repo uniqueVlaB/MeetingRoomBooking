@@ -495,3 +495,7 @@ npm-debug.log*
 ##
 appsettings.Local.json
 *.local.json
+
+# Written by the Aspire CLI and specific to a working copy (it records an absolute-style project
+# path). Each clone generates its own.
+aspire.config.json

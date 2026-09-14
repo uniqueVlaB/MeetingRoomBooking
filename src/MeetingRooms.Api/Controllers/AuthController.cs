@@ -19,6 +19,7 @@ namespace MeetingRooms.Api.Controllers;
 /// <param name="tokenService">Issues access tokens.</param>
 /// <param name="refreshTokenService">Issues, rotates and revokes refresh tokens.</param>
 /// <param name="refreshTokenCookie">Reads and writes the refresh-token cookie.</param>
+/// <param name="logger">Records registration failures that the caller is not shown.</param>
 [ApiController]
 [Route("api/auth")]
 [Tags("Authentication")]
@@ -27,12 +28,14 @@ public sealed class AuthController(
     UserManager<ApplicationUser> userManager,
     ITokenService tokenService,
     IRefreshTokenService refreshTokenService,
-    RefreshTokenCookie refreshTokenCookie) : ControllerBase
+    RefreshTokenCookie refreshTokenCookie,
+    ILogger<AuthController> logger) : ControllerBase
 {
     private readonly UserManager<ApplicationUser> userManager = userManager;
     private readonly ITokenService tokenService = tokenService;
     private readonly IRefreshTokenService refreshTokenService = refreshTokenService;
     private readonly RefreshTokenCookie refreshTokenCookie = refreshTokenCookie;
+    private readonly ILogger<AuthController> logger = logger;
 
     /// <summary>Creates an account and signs it in.</summary>
     /// <param name="request">The account to create.</param>
@@ -69,7 +72,25 @@ public sealed class AuthController(
 
         // Everyone who registers is an ordinary user. Administrators are made by seeding or by an
         // existing administrator, never by self-service, which would make the role meaningless.
-        await this.userManager.AddToRoleAsync(user, RoleNames.User);
+        var granted = await this.userManager.AddToRoleAsync(user, RoleNames.User);
+
+        if (!granted.Succeeded)
+        {
+            // An account with no role authenticates but is refused everywhere, and the symptom --
+            // "signed in, but nothing works" -- is tedious to trace back to here. Undo the account
+            // instead, so the user can simply try again rather than being stuck with a broken one.
+            this.logger.LogError(
+                "Could not grant the {Role} role to a new account; the account was removed. {Errors}",
+                RoleNames.User,
+                string.Join("; ", granted.Errors.Select(error => error.Description)));
+
+            await this.userManager.DeleteAsync(user);
+
+            return this.Problem(
+                detail: "The account could not be created. Please try again.",
+                statusCode: StatusCodes.Status500InternalServerError,
+                title: "Registration failed");
+        }
 
         return await this.IssueSessionAsync(user, cancellationToken);
     }

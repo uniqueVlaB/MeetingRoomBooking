@@ -12,8 +12,8 @@ interface AppSettings {
  * Runtime rather than build time on purpose. The client and API are deployed as two separate Azure
  * Web Apps, so the API's URL differs per environment; reading it at start-up means the same build
  * artefact can be pointed anywhere, and the deployment workflow only has to rewrite one small file.
- * The reference project used Angular `fileReplacements` for this and shipped the wrong value,
- * because `angular.json` never actually declared the replacement.
+ * Angular's `fileReplacements` would tie the URL to the build, and silently ships the wrong value if
+ * `angular.json` ever stops declaring the replacement.
  */
 @Injectable({ providedIn: 'root' })
 export class AppConfig {

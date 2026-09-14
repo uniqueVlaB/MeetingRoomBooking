@@ -3,6 +3,7 @@ using MeetingRooms.Api.Infrastructure;
 using MeetingRooms.Contracts.Rooms;
 using MeetingRooms.Core.Abstractions;
 using MeetingRooms.Core.Entities;
+using MeetingRooms.Core.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -10,11 +11,12 @@ namespace MeetingRooms.Api.Controllers;
 
 /// <summary>Reading rooms and schedules, and administering the room catalogue.</summary>
 /// <param name="roomService">Room and schedule operations.</param>
+/// <param name="clock">Supplies the date a schedule defaults to.</param>
 [ApiController]
 [Route("api/rooms")]
 [Authorize]
 [Tags("Rooms")]
-public sealed class RoomsController(IRoomService roomService) : ControllerBase
+public sealed class RoomsController(IRoomService roomService, ScheduleClock clock) : ControllerBase
 {
     /// <summary>
     /// Route name for the single-room endpoint.
@@ -27,6 +29,7 @@ public sealed class RoomsController(IRoomService roomService) : ControllerBase
     private const string GetRoomRouteName = "GetRoom";
 
     private readonly IRoomService roomService = roomService;
+    private readonly ScheduleClock clock = clock;
 
     /// <summary>Lists rooms.</summary>
     /// <param name="cancellationToken">Cancels the operation.</param>
@@ -80,9 +83,11 @@ public sealed class RoomsController(IRoomService roomService) : ControllerBase
         [FromQuery] DateOnly? date,
         CancellationToken cancellationToken)
     {
+        // Through the clock rather than DateTime.UtcNow, so the default day is the one the booking
+        // rules will judge the request against -- and so tests can choose it.
         var result = await this.roomService.GetScheduleAsync(
             roomId,
-            date ?? DateOnly.FromDateTime(DateTime.UtcNow),
+            date ?? this.clock.Today(),
             cancellationToken);
 
         return result.IsSuccess ? this.Ok(result.Value) : result.ToErrorResult(this);
@@ -104,6 +109,8 @@ public sealed class RoomsController(IRoomService roomService) : ControllerBase
         [FromBody] CreateRoomRequest request,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         var result = await this.roomService.CreateRoomAsync(request, cancellationToken);
 
         return result.IsSuccess && result.Value is not null
@@ -129,6 +136,8 @@ public sealed class RoomsController(IRoomService roomService) : ControllerBase
         [FromBody] UpdateRoomRequest request,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         var result = await this.roomService.UpdateRoomAsync(roomId, request, cancellationToken);
 
         return result.IsSuccess ? this.Ok(result.Value) : result.ToErrorResult(this);

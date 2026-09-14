@@ -14,8 +14,8 @@ public sealed class SeedAccount
     /// </summary>
     /// <remarks>
     /// Supplied through configuration — user secrets locally, Web App settings in Azure — and never
-    /// committed. The reference project hardcoded its seed credentials in source, which meant the
-    /// production admin password was in the repository.
+    /// committed. Hardcoding a seed credential in source puts the production administrator password
+    /// in the repository, where it outlives every rotation.
     /// </remarks>
     public string Password { get; set; } = string.Empty;
 

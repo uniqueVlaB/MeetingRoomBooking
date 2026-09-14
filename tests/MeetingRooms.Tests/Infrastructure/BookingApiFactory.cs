@@ -4,7 +4,9 @@ using MeetingRooms.Infrastructure.SQL;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace MeetingRooms.Tests.Infrastructure;
 
@@ -19,7 +21,13 @@ namespace MeetingRooms.Tests.Infrastructure;
 /// the in-process hub is used and no subscription is needed.
 /// </remarks>
 /// <param name="connectionString">Connection string for the test database.</param>
-public sealed class BookingApiFactory(string connectionString) : WebApplicationFactory<Program>
+/// <param name="configureServices">
+/// Replaces registrations after the application has made its own, so a test can substitute a
+/// collaborator -- the booking notifier, for instance -- without the application knowing.
+/// </param>
+public sealed class BookingApiFactory(
+    string connectionString,
+    Action<IServiceCollection>? configureServices = null) : WebApplicationFactory<Program>
 {
     /// <summary>Signing key used for tokens in tests. Long enough for HMAC-SHA256.</summary>
     private const string TestSigningKey = "test-signing-key-for-integration-tests-only-32-plus-chars";
@@ -75,6 +83,32 @@ public sealed class BookingApiFactory(string connectionString) : WebApplicationF
         return tokenService.CreateAccessToken(user, roles).Value;
     }
 
+    /// <summary>
+    /// Issues a bearer token that expired two hours ago.
+    /// </summary>
+    /// <remarks>
+    /// Minted by the real token service against a stopped clock, so the token is genuine in every
+    /// respect except its age. The alternative -- shortening the configured lifetime and sleeping --
+    /// would test a different configuration than the one that ships.
+    /// </remarks>
+    /// <param name="user">The user to authenticate as.</param>
+    /// <param name="roles">Roles to embed in the token.</param>
+    /// <returns>The signed, already expired JWT.</returns>
+    public string CreateExpiredAccessToken(ApplicationUser user, params string[] roles)
+    {
+        var options = Options.Create(new JwtOptions
+        {
+            Issuer = "https://meetingrooms.tests",
+            Audience = "https://meetingrooms.tests",
+            SigningKey = TestSigningKey,
+            AccessTokenMinutes = 1,
+        });
+
+        var stoppedClock = new FixedTimeProvider(DateTimeOffset.UtcNow.AddHours(-2));
+
+        return new JwtTokenService(options, stoppedClock).CreateAccessToken(user, roles).Value;
+    }
+
     /// <inheritdoc />
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -117,6 +151,12 @@ public sealed class BookingApiFactory(string connectionString) : WebApplicationF
                 this.serverErrors.Add(entry);
             }
         })));
+
+        // Applied last, so a test substitution wins over the application's own registration.
+        if (configureServices is not null)
+        {
+            builder.ConfigureServices(configureServices);
+        }
     }
 
     /// <summary>Forwards logged errors to a callback so tests can report them.</summary>

@@ -1,19 +1,32 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  computed,
+  effect,
+  inject,
+  input,
+  signal,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { BookingsService } from '../../core/api/bookings.service';
 import { RoomsService } from '../../core/api/rooms.service';
 import { AuthService } from '../../core/auth/auth.service';
+import {
+  formatDayLong,
+  isPastDay,
+  relativeDay,
+  shiftIsoDate,
+  todayIso,
+} from '../../core/format/date';
+import { formatSlotTime } from '../../core/format/time';
+import { describeError } from '../../core/http/describe-error';
 import { Booking, Schedule, ScheduleSlot } from '../../core/models';
 import { BookingHubService } from '../../core/realtime/booking-hub.service';
-
-/** A message shown above the grid. */
-interface Notice {
-  kind: 'info' | 'error';
-  text: string;
-}
+import { Notice, failure, info } from '../../core/ui/notice';
 
 /**
  * A room's schedule for one date: which slots are free, which are taken, and by whom.
@@ -32,10 +45,20 @@ interface Notice {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ScheduleComponent {
-  private readonly rooms = inject(RoomsService);
-  private readonly bookings = inject(BookingsService);
+  private readonly roomsApi = inject(RoomsService);
+  private readonly bookingsApi = inject(BookingsService);
   private readonly hub = inject(BookingHubService);
   private readonly auth = inject(AuthService);
+
+  /**
+   * Identifies the most recent load.
+   *
+   * Loads are fired from an effect on the room and the date, so stepping quickly through days puts
+   * several in flight at once and they can come back in any order. Without this an older response
+   * can overwrite a newer one, leaving the grid showing a day the user has already left — and its
+   * `finally` clears the spinner while the current day is still arriving.
+   */
+  private loadToken = 0;
 
   /** Route parameter, bound by `withComponentInputBinding`. */
   readonly roomId = input.required<string>();
@@ -49,14 +72,33 @@ export class ScheduleComponent {
   /** Whether a load is in flight. */
   protected readonly loading = signal(false);
 
+  /**
+   * Whether the last load failed.
+   *
+   * Tracked separately from the schedule being null, because the two mean opposite things to a
+   * reader: "nothing came back" and "this room has no slots" look identical in the data and must
+   * not look identical on screen. Without this the template answers a failed request with a
+   * confident "This room has no bookable slots."
+   */
+  protected readonly loadFailed = signal(false);
+
+  /**
+   * Placeholder rows drawn while a schedule loads.
+   *
+   * Six is a typical working day at hourly slots. Standing in for the list at roughly its real
+   * height is the point: a one-line "Loading…" collapses the page and it snaps back a moment later,
+   * which moves whatever the user was about to click.
+   */
+  protected readonly skeletonRows = [0, 1, 2, 3, 4, 5];
+
   /** The slot currently being booked or cancelled, so only that row shows a spinner. */
   protected readonly pendingSlotId = signal<string | null>(null);
 
   /** A message about the last action. */
   protected readonly notice = signal<Notice | null>(null);
 
-  /** Whether live updates are currently flowing. */
-  protected readonly isLive = this.hub.isConnected;
+  /** Whether live updates are flowing, recovering, or stopped. */
+  protected readonly connection = this.hub.connectionState;
 
   /** Slots in display order. */
   protected readonly slots = computed(() => this.schedule()?.slots ?? []);
@@ -65,6 +107,32 @@ export class ScheduleComponent {
   protected readonly freeCount = computed(
     () => this.slots().filter((slot) => !slot.isBooked).length,
   );
+
+  /** The proportion of the day still free, for the availability bar. */
+  protected readonly freePercent = computed(() => {
+    const total = this.slots().length;
+
+    return total === 0 ? 0 : Math.round((this.freeCount() / total) * 100);
+  });
+
+  /** The date being shown, written out: "Sunday, 20 September 2026". */
+  protected readonly dayLabel = computed(() => formatDayLong(this.date()));
+
+  /** "Today", "Tomorrow" or "Yesterday" when the date is one of them, else null. */
+  protected readonly dayRelative = computed(() => relativeDay(this.date()));
+
+  /** Whether the view is already on today, so the shortcut back has nothing to do. */
+  protected readonly isToday = computed(() => this.date() === todayIso());
+
+  /**
+   * Whether the day being shown has already gone.
+   *
+   * Said out loud rather than left to the user to work out from the date, because the schedule for
+   * a past day looks exactly like the schedule for a future one. The Book buttons stay live: the
+   * server decides what is bookable, in the rooms' own time zone, and a browser clock in a
+   * different zone would otherwise refuse a day the server would have accepted.
+   */
+  protected readonly isPast = computed(() => isPastDay(this.date()));
 
   constructor() {
     // Reloads and re-subscribes whenever the room or the date changes. Both happen through signals,
@@ -75,12 +143,12 @@ export class ScheduleComponent {
 
       void this.load(roomId, date);
       void this.hub.watch(roomId, date).catch(() => {
-        // A hub that will not connect is not fatal: the schedule still loads and can be refreshed
-        // by hand. Saying so is better than pretending the page is live when it is not.
-        this.notice.set({
-          kind: 'error',
-          text: 'Live updates are unavailable; reload to see other people’s changes.',
-        });
+        // A hub that will not connect is not fatal: the schedule still loads, this user's own
+        // actions still show up, and the page can be refreshed by hand. Saying so is better than
+        // pretending the page is live when it is not.
+        this.notice.set(
+          failure('Live updates are unavailable; reload to see other people’s changes.'),
+        );
       });
     });
 
@@ -91,6 +159,39 @@ export class ScheduleComponent {
     this.hub.slotReleased$
       .pipe(takeUntilDestroyed())
       .subscribe((booking) => this.applyReleased(booking));
+
+    // Rejoining the group restores the flow of updates but recovers none of the ones broadcast
+    // while the connection was down. Whatever is on screen was accurate before the drop and may be
+    // wrong now, so re-read it: the alternative is a grid that reports a taken slot as free under a
+    // green "Live" badge, which is precisely the failure reconnecting is supposed to prevent.
+    this.hub.rejoined$
+      .pipe(takeUntilDestroyed())
+      .subscribe(() => void this.load(this.roomId(), this.date()));
+
+    // Leaves the room+date group when this view goes away. The connection is shared and stays open,
+    // but the server should not fan messages out to a browser with nothing left to render them.
+    inject(DestroyRef).onDestroy(() => void this.hub.unwatch());
+  }
+
+  /** Reconnects after live updates have stopped, without reloading the page. */
+  protected async reconnect(): Promise<void> {
+    this.notice.set(null);
+
+    try {
+      await this.hub.watch(this.roomId(), this.date());
+
+      // The connection was down for an unknown stretch, so the grid is suspect for the same reason
+      // it is after an automatic reconnect.
+      await this.load(this.roomId(), this.date());
+    } catch (error) {
+      this.notice.set(failure(describeError(error)));
+    }
+  }
+
+  /** Reloads the schedule after a failed load. */
+  protected async retry(): Promise<void> {
+    this.notice.set(null);
+    await this.load(this.roomId(), this.date());
   }
 
   /** Whether a slot is held by the signed-in user, who may therefore cancel it. */
@@ -105,7 +206,7 @@ export class ScheduleComponent {
 
   /** Formats "09:00:00" as "09:00". */
   protected formatTime(time: string): string {
-    return time.slice(0, 5);
+    return formatSlotTime(time);
   }
 
   /** Books a slot. */
@@ -114,22 +215,32 @@ export class ScheduleComponent {
     this.notice.set(null);
 
     try {
-      await this.bookings.book({ timeSlotId: slot.timeSlotId, slotDate: this.date() });
-      this.notice.set({
-        kind: 'info',
-        text: `Booked ${this.formatTime(slot.startTime)}–${this.formatTime(slot.endTime)}.`,
+      const booking = await this.bookingsApi.book({
+        timeSlotId: slot.timeSlotId,
+        slotDate: this.date(),
       });
+
+      // Apply the server's own answer rather than waiting for it to come back around over SignalR.
+      // The broadcast usually arrives first and this is then a no-op, but when the hub is down --
+      // which the effect above treats as survivable -- it is the only thing that marks the slot
+      // taken. Without it a user books successfully, sees no change, and clicks again into a 409.
+      this.applyBooked(booking);
+
+      this.notice.set(
+        info(`Booked ${this.formatTime(slot.startTime)}–${this.formatTime(slot.endTime)}.`),
+      );
     } catch (error) {
       // 409 is the expected outcome of losing a race, not a malfunction, so it gets a plain
       // explanation rather than an error dump.
       const conflict = error instanceof HttpErrorResponse && error.status === 409;
 
-      this.notice.set({
-        kind: 'error',
-        text: conflict
-          ? 'Somebody else booked that slot a moment before you. The schedule has been updated.'
-          : describeError(error),
-      });
+      this.notice.set(
+        failure(
+          conflict
+            ? 'Somebody else booked that slot a moment before you. The schedule has been updated.'
+            : describeError(error),
+        ),
+      );
 
       if (conflict) {
         // Pull the truth from the server rather than guessing: the winning booking may not have
@@ -151,10 +262,14 @@ export class ScheduleComponent {
     this.notice.set(null);
 
     try {
-      await this.bookings.cancel(slot.bookingId);
-      this.notice.set({ kind: 'info', text: 'Booking cancelled; the slot is free again.' });
+      await this.bookingsApi.cancel(slot.bookingId);
+
+      // As in book(): do not depend on the broadcast to show this user their own action.
+      this.releaseSlot(slot.timeSlotId);
+
+      this.notice.set(info('Booking cancelled; the slot is free again.'));
     } catch (error) {
-      this.notice.set({ kind: 'error', text: describeError(error) });
+      this.notice.set(failure(describeError(error)));
       await this.load(this.roomId(), this.date());
     } finally {
       this.pendingSlotId.set(null);
@@ -163,28 +278,49 @@ export class ScheduleComponent {
 
   /** Moves the view by a number of days. */
   protected shiftDate(days: number): void {
-    const moved = new Date(`${this.date()}T00:00:00`);
-    moved.setDate(moved.getDate() + days);
-    this.date.set(toIso(moved));
+    this.date.set(shiftIsoDate(this.date(), days));
   }
 
-  /** Loads the schedule for a room and date. */
+  /** Returns to today, which is otherwise several clicks away once the user has wandered. */
+  protected goToToday(): void {
+    this.date.set(todayIso());
+  }
+
+  /** Loads the schedule for a room and date, discarding a response newer work has superseded. */
   private async load(roomId: string, date: string): Promise<void> {
+    const token = ++this.loadToken;
+
     this.loading.set(true);
 
     try {
-      this.schedule.set(await this.rooms.getSchedule(roomId, date));
+      const schedule = await this.roomsApi.getSchedule(roomId, date);
+
+      if (token === this.loadToken) {
+        this.schedule.set(schedule);
+        this.loadFailed.set(false);
+      }
     } catch (error) {
-      this.schedule.set(null);
-      this.notice.set({ kind: 'error', text: describeError(error) });
+      if (token === this.loadToken) {
+        this.schedule.set(null);
+        this.loadFailed.set(true);
+        this.notice.set(failure(describeError(error)));
+      }
     } finally {
-      this.loading.set(false);
+      // Only the newest load owns the spinner; an older one finishing must not clear it while the
+      // day the user is actually looking at is still on its way.
+      if (token === this.loadToken) {
+        this.loading.set(false);
+      }
     }
   }
 
-  /** Marks a slot as taken in response to a broadcast. */
+  /** Marks a slot as taken in response to a booking. */
   private applyBooked(booking: Booking): void {
-    this.patchSlot(booking, (slot) => ({
+    if (!this.describesCurrentView(booking)) {
+      return;
+    }
+
+    this.patchSlot(booking.timeSlotId, (slot) => ({
       ...slot,
       isBooked: true,
       bookingId: booking.id,
@@ -193,9 +329,18 @@ export class ScheduleComponent {
     }));
   }
 
-  /** Marks a slot as free in response to a broadcast. */
+  /** Marks a slot as free in response to a cancellation. */
   private applyReleased(booking: Booking): void {
-    this.patchSlot(booking, (slot) => ({
+    if (!this.describesCurrentView(booking)) {
+      return;
+    }
+
+    this.releaseSlot(booking.timeSlotId);
+  }
+
+  /** Marks one slot free by its identifier. */
+  private releaseSlot(timeSlotId: string): void {
+    this.patchSlot(timeSlotId, (slot) => ({
       ...slot,
       isBooked: false,
       bookingId: null,
@@ -205,47 +350,31 @@ export class ScheduleComponent {
   }
 
   /**
-   * Applies a change to the slot a broadcast refers to.
+   * Whether a booking belongs to the room and date on screen.
    *
-   * The room and date are checked even though the subscription is already scoped to them: a
-   * broadcast can arrive in the moment between switching day and the group change taking effect,
-   * and applying it would put a booking from Tuesday onto Monday's grid.
+   * Checked even though the subscription is already scoped to them: a broadcast can arrive in the
+   * moment between switching day and the group change taking effect, and applying it would put a
+   * booking from Tuesday onto Monday's grid.
    */
-  private patchSlot(booking: Booking, update: (slot: ScheduleSlot) => ScheduleSlot): void {
+  private describesCurrentView(booking: Booking): boolean {
     const current = this.schedule();
 
-    if (!current || booking.roomId !== current.roomId || booking.slotDate !== current.date) {
+    return (
+      current !== null && booking.roomId === current.roomId && booking.slotDate === current.date
+    );
+  }
+
+  /** Applies a change to one slot of the loaded schedule. */
+  private patchSlot(timeSlotId: string, update: (slot: ScheduleSlot) => ScheduleSlot): void {
+    const current = this.schedule();
+
+    if (!current) {
       return;
     }
 
     this.schedule.set({
       ...current,
-      slots: current.slots.map((slot) =>
-        slot.timeSlotId === booking.timeSlotId ? update(slot) : slot,
-      ),
+      slots: current.slots.map((slot) => (slot.timeSlotId === timeSlotId ? update(slot) : slot)),
     });
   }
-}
-
-/** Today as `yyyy-MM-dd` in the browser's local time zone. */
-function todayIso(): string {
-  return toIso(new Date());
-}
-
-/** Formats a date as `yyyy-MM-dd`, avoiding the UTC shift that `toISOString` would introduce. */
-function toIso(value: Date): string {
-  const month = `${value.getMonth() + 1}`.padStart(2, '0');
-  const day = `${value.getDate()}`.padStart(2, '0');
-
-  return `${value.getFullYear()}-${month}-${day}`;
-}
-
-/** Turns an error into something worth showing a user. */
-function describeError(error: unknown): string {
-  if (error instanceof HttpErrorResponse) {
-    // The API returns RFC 9457 problem details, whose "detail" is written for a human.
-    return error.error?.detail ?? error.error?.title ?? `Request failed (${error.status}).`;
-  }
-
-  return 'Something went wrong. Please try again.';
 }

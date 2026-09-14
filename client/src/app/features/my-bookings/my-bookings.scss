@@ -1,3 +1,25 @@
+// One heading per day, with the rows under it. The date used to be repeated on every row in the
+// API's format; saying it once, in words, is both shorter and easier to scan.
+.day-group {
+  margin-bottom: 1.25rem;
+
+  h2 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin: 0 0 0.5rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+  }
+
+  // A day that has gone is history rather than something to act on, so it recedes -- without being
+  // hidden, because cancelling one is still the user's business.
+  &.past .day-name {
+    color: var(--text-muted);
+  }
+}
+
 .bookings {
   list-style: none;
   margin: 0;
@@ -9,7 +31,7 @@
 
   li {
     display: grid;
-    grid-template-columns: 14rem 1fr auto;
+    grid-template-columns: 9rem 1fr auto;
     align-items: center;
     gap: 1rem;
     padding: 0.75rem 1rem;
@@ -22,9 +44,25 @@
 }
 
 .when {
-  display: flex;
-  gap: 0.5rem;
   font-variant-numeric: tabular-nums;
+  font-weight: 550;
+}
+
+.skeleton {
+  .when {
+    width: 7rem;
+  }
+
+  .ghost-bar:not(.when):not(.action) {
+    width: 45%;
+  }
+
+  .action {
+    width: 4.5rem;
+    height: 1.9rem;
+    border-radius: 7px;
+    justify-self: end;
+  }
 }
 
 .room {

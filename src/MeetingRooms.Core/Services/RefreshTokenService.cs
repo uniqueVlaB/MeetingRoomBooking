@@ -1,4 +1,6 @@
+using System.Buffers.Text;
 using System.Security.Cryptography;
+using System.Text;
 using MeetingRooms.Core.Abstractions;
 using MeetingRooms.Core.Entities;
 using MeetingRooms.Core.Options;
@@ -75,7 +77,20 @@ public sealed class RefreshTokenService(
         var replacement = this.CreateToken(existing.UserId);
         this.unitOfWork.RefreshTokens.Add(replacement.Entity);
 
-        await this.unitOfWork.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await this.unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Redeeming is a read-then-write, so two requests presenting the same cookie can both
+            // pass the check above. The rowversion makes the second save fail, and it must fail
+            // closed: allowing it would issue two replacements for one token, which is precisely
+            // the replay this design exists to detect. Same message as an unknown token, so a
+            // caller learns nothing from which branch it took.
+            return OperationResult<RotatedRefreshToken>.Forbidden(
+                "That session has expired. Please sign in again.");
+        }
 
         return OperationResult<RotatedRefreshToken>.Success(
             new RotatedRefreshToken(existing.UserId, replacement.RawToken, replacement.Entity.ExpiresUtc));
@@ -102,14 +117,23 @@ public sealed class RefreshTokenService(
         }
 
         existing.RevokedUtc = this.timeProvider.GetUtcNow();
-        await this.unitOfWork.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            await this.unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Somebody else revoked or rotated it first. The token is dead either way, which is all
+            // signing out asked for.
+        }
     }
 
     /// <summary>Hashes a raw token for storage and lookup.</summary>
     /// <param name="rawToken">The raw token value.</param>
     /// <returns>The hex-encoded SHA-256 hash.</returns>
     private static string Hash(string rawToken) =>
-        Convert.ToHexStringLower(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(rawToken)));
+        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(rawToken)));
 
     /// <summary>Generates a token and its unsaved entity.</summary>
     /// <param name="userId">The user the token belongs to.</param>
@@ -117,7 +141,7 @@ public sealed class RefreshTokenService(
     private (string RawToken, RefreshToken Entity) CreateToken(Guid userId)
     {
         // Base64Url so the value is safe in a cookie without further encoding.
-        var rawToken = Base64UrlEncode(RandomNumberGenerator.GetBytes(TokenBytes));
+        var rawToken = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(TokenBytes));
         var now = this.timeProvider.GetUtcNow();
 
         var entity = new RefreshToken
@@ -130,10 +154,4 @@ public sealed class RefreshTokenService(
 
         return (rawToken, entity);
     }
-
-    /// <summary>Encodes bytes using the URL- and cookie-safe base64 alphabet.</summary>
-    /// <param name="bytes">The bytes to encode.</param>
-    /// <returns>The encoded string, without padding.</returns>
-    private static string Base64UrlEncode(byte[] bytes) =>
-        Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
 }

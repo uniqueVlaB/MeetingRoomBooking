@@ -20,6 +20,7 @@ public static class ApiConfiguration
         ArgumentNullException.ThrowIfNull(builder);
 
         builder.AddOptionsConfiguration();
+        builder.AddAuthSupportServices();
         builder.Services.AddCorsConfiguration(builder.Configuration);
         builder.AddRealtimeConfiguration();
 
@@ -55,6 +56,18 @@ public static class ApiConfiguration
         builder.Services.Configure<SeedOptions>(
             builder.Configuration.GetSection(SeedOptions.SectionName));
 
+        // The time zone is validated when ScheduleClock is first resolved rather than here, because
+        // "is this a zone this machine knows?" is not something data annotations can express.
+        builder.Services.AddOptions<BookingOptions>()
+            .Bind(builder.Configuration.GetSection(BookingOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+    }
+
+    /// <summary>Registers the pieces of the auth surface that live in the API layer.</summary>
+    /// <param name="builder">The host application builder.</param>
+    private static void AddAuthSupportServices(this WebApplicationBuilder builder)
+    {
         builder.Services.AddScoped<ITokenService, JwtTokenService>();
         builder.Services.AddSingleton<RefreshTokenCookie>();
     }

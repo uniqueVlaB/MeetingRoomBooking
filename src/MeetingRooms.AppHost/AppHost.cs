@@ -64,6 +64,8 @@ api.WithCommand(
         }
         catch (Exception exception)
         {
+            // Message rather than ErrorMessage: the latter is obsolete in this Aspire version, and
+            // warnings are errors here.
             return new ExecuteCommandResult { Success = false, Message = exception.ToString() };
         }
     },
@@ -80,8 +82,8 @@ api.WithCommand(
 // ── Angular client ────────────────────────────────────────────────────────────────────────────
 
 // API_URL is read by client/proxy.conf.js, so the dev-server proxy follows whatever port Aspire
-// assigned the API. The reference project hardcoded that port in four separate files and broke
-// whenever one of them moved.
+// assigned the API. Hardcoding that port means repeating it in every file that needs it, and each
+// copy breaks separately when it moves.
 builder
     .AddJavaScriptApp("meetingrooms-client", "../../client", runScriptName: "start")
     // Runs "npm install" before the dev server starts, so a fresh clone needs no manual step.
