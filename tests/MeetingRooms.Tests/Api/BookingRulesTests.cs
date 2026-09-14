@@ -38,7 +38,11 @@ public sealed class BookingRulesTests(SqlServerFixture fixture)
         var (slotId, user) = await this.SeedSlotAndUserAsync();
         using var client = this.CreateClientFor(factory, user);
 
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        // The server's own answer, not DateOnly.FromDateTime(DateTime.UtcNow): Booking:TimeZone is
+        // Europe/Kyiv, which is ahead of UTC, so for a stretch of every day (from local midnight in
+        // Kyiv until UTC midnight) UTC's calendar date is still "yesterday" by the server's reckoning
+        // and this test would send a date the "no booking in the past" rule correctly rejects.
+        var today = factory.Today();
 
         var response = await client.PostAsJsonAsync(
             "/api/bookings",
@@ -59,7 +63,7 @@ public sealed class BookingRulesTests(SqlServerFixture fixture)
 
         var response = await client.PostAsJsonAsync(
             "/api/bookings",
-            new CreateBookingRequest(slotId, TestData.FutureDate(MaxDaysAhead)));
+            new CreateBookingRequest(slotId, factory.Today().AddDays(MaxDaysAhead)));
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
     }
@@ -82,7 +86,7 @@ public sealed class BookingRulesTests(SqlServerFixture fixture)
 
         var response = await client.PostAsJsonAsync(
             "/api/bookings",
-            new CreateBookingRequest(slotId, TestData.FutureDate(MaxDaysAhead + 1)));
+            new CreateBookingRequest(slotId, factory.Today().AddDays(MaxDaysAhead + 1)));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }

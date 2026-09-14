@@ -1,5 +1,6 @@
 using MeetingRooms.Api.Auth;
 using MeetingRooms.Core.Entities;
+using MeetingRooms.Core.Services;
 using MeetingRooms.Infrastructure.SQL;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -63,6 +64,26 @@ public sealed class BookingApiFactory(
         return errors.Count == 0
             ? "(the API logged no errors)"
             : string.Join(Environment.NewLine, errors);
+    }
+
+    /// <summary>
+    /// The date the API itself considers "today", in the configured booking time zone.
+    /// </summary>
+    /// <remarks>
+    /// A test that computed a boundary date from <see cref="DateTime.UtcNow"/> and compared it
+    /// against the server's answer was wrong for a stretch of every day: <c>Booking:TimeZone</c> is
+    /// <c>Europe/Kyiv</c> (UTC+2 or +3), so for the last two or three hours before UTC midnight, the
+    /// zone's calendar date has already rolled over while <see cref="DateTime.UtcNow"/>'s has not,
+    /// and a test asserting "today" or "the last day of the window" silently asserted the wrong date.
+    /// Asking the server's own <see cref="ScheduleClock"/> is what removes the assumption that the
+    /// two agree.
+    /// </remarks>
+    /// <returns>Today, in the booking time zone.</returns>
+    public DateOnly Today()
+    {
+        using var scope = this.Services.CreateScope();
+
+        return scope.ServiceProvider.GetRequiredService<ScheduleClock>().Today();
     }
 
     /// <summary>
