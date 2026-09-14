@@ -33,6 +33,7 @@ export class BookingHubService {
   private readonly slotReleasedSubject = new Subject<Booking>();
 
   private connection: HubConnection | null = null;
+  private connecting: Promise<HubConnection> | null = null;
   private currentGroup: { roomId: string; date: string } | null = null;
 
   /** Emits when a slot becomes booked in the room and date currently being watched. */
@@ -67,18 +68,40 @@ export class BookingHubService {
     await this.leaveCurrentGroup();
 
     if (this.connection) {
-      await this.connection.stop();
+      const connection = this.connection;
+
+      // Cleared first, so a watch() racing this teardown opens a fresh connection rather than
+      // handing back the one being stopped.
       this.connection = null;
       this.isConnected.set(false);
+
+      await connection.stop();
     }
   }
 
-  /** Opens the connection if it is not already open. */
-  private async ensureConnected(): Promise<HubConnection> {
+  /**
+   * Opens the connection if it is not already open.
+   *
+   * The in-flight promise is memoised, exactly as `AuthService.restore()` memoises its refresh.
+   * Without it two overlapping `watch()` calls — stepping through days, or a route change — both
+   * see a connection that is not yet established and both build one. The second wins the field, and
+   * the first stays open with its handlers still attached: every broadcast then arrives twice, and
+   * an Azure SignalR connection is held for the life of the page with nothing referencing it.
+   */
+  private ensureConnected(): Promise<HubConnection> {
     if (this.connection?.state === HubConnectionState.Connected) {
-      return this.connection;
+      return Promise.resolve(this.connection);
     }
 
+    this.connecting ??= this.openConnection().finally(() => {
+      this.connecting = null;
+    });
+
+    return this.connecting;
+  }
+
+  /** Builds and starts a connection. Only ever called through {@link ensureConnected}. */
+  private async openConnection(): Promise<HubConnection> {
     const connection = new HubConnectionBuilder()
       .withUrl(this.config.hubUrl, {
         // A browser WebSocket cannot set an Authorization header, so SignalR appends the token as
@@ -95,19 +118,36 @@ export class BookingHubService {
     connection.on(SLOT_RELEASED, (booking: Booking) => this.slotReleasedSubject.next(booking));
 
     connection.onreconnected(async () => {
-      this.isConnected.set(true);
-
       // Group membership does not survive a reconnect, so rejoin explicitly. Easy to miss, and the
       // symptom -- updates simply stop arriving -- looks like nothing is wrong.
-      if (this.currentGroup) {
-        const { roomId, date } = this.currentGroup;
+      if (!this.currentGroup) {
+        this.isConnected.set(true);
+        return;
+      }
+
+      const { roomId, date } = this.currentGroup;
+
+      try {
         await connection.invoke('JoinRoomAsync', roomId, date);
+        this.isConnected.set(true);
+      } catch {
+        // Reconnected to the hub but not back in the group, so no updates will arrive. Reporting
+        // "live" here would be the stale-schedule failure wearing a green light.
+        this.isConnected.set(false);
       }
     });
 
     connection.onclose(() => this.isConnected.set(false));
 
-    await connection.start();
+    try {
+      await connection.start();
+    } catch (error) {
+      // Leave nothing half-built behind: a failed connection that stayed in `this.connection` would
+      // make the next ensureConnected() believe one already exists.
+      await connection.stop().catch(() => undefined);
+      throw error;
+    }
+
     this.connection = connection;
     this.isConnected.set(true);
 
