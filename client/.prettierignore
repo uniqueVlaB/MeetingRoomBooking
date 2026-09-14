@@ -1,0 +1,11 @@
+# Build output and caches.
+dist
+.angular
+coverage
+out-tsc
+
+# Generated, and rewritten wholesale by npm.
+package-lock.json
+
+# Instructions for tooling; reflowing them is not an improvement.
+.claude

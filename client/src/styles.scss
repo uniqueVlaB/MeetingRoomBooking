@@ -58,7 +58,12 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 400 15px/1.5 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font:
+    400 15px/1.5 system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
 }
 
 h1 {
@@ -116,7 +121,10 @@ button {
   padding: 0.45rem 0.9rem;
   border-radius: 7px;
   cursor: pointer;
-  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease,
+    color 0.12s ease;
 
   &:disabled {
     opacity: 0.55;

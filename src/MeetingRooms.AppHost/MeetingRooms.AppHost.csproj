@@ -17,6 +17,15 @@
     <UserSecretsId>meetingrooms-apphost</UserSecretsId>
     <!-- Generated Projects.* metadata is not documented; the rule would fail the build. -->
     <NoWarn>$(NoWarn);CS1591</NoWarn>
+
+    <!--
+      ASPIRE010 reports that the Aspire CLI bundle is not in use. It is an MSBuild warning raised by
+      an imported .targets file, so TreatWarningsAsErrors (which applies to compiler warnings) never
+      promoted it, and it was the one thing keeping the build from being genuinely clean.
+      Suppressed rather than fixed because the features the bundle adds are ones this repository does
+      not use: deployment goes through GitHub Actions to Azure Web Apps, not Aspire publishing.
+    -->
+    <NoWarn>$(NoWarn);ASPIRE010</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

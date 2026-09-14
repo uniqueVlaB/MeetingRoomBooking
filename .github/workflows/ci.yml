@@ -37,7 +37,7 @@ jobs:
         run: dotnet test MeetingRoomBooking.slnx --configuration Release --no-build --logger "console;verbosity=normal"
 
   frontend:
-    name: Build the client
+    name: Check, test and build the client
     runs-on: ubuntu-latest
 
     steps:
@@ -52,6 +52,21 @@ jobs:
       - name: Install
         working-directory: client
         run: npm ci
+
+      - name: Check formatting
+        # The repository carries a Prettier configuration; without this it was advisory only, and
+        # formatting drifted file by file.
+        working-directory: client
+        run: npm run format:check
+
+      - name: Lint
+        # The backend has had warnings-as-errors from the start. This is the client's half of it.
+        working-directory: client
+        run: npm run lint
+
+      - name: Test
+        working-directory: client
+        run: npm test -- --no-watch
 
       - name: Build
         working-directory: client
