@@ -2,8 +2,10 @@ using System.Linq.Expressions;
 using MeetingRooms.Contracts.Bookings;
 using MeetingRooms.Core.Abstractions;
 using MeetingRooms.Core.Entities;
+using MeetingRooms.Core.Options;
 using MeetingRooms.Core.Results;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace MeetingRooms.Core.Services;
 
@@ -24,18 +26,14 @@ namespace MeetingRooms.Core.Services;
 /// </remarks>
 /// <param name="unitOfWork">Entity access and the commit point.</param>
 /// <param name="conflictDetector">Recognises a lost race in a failed save.</param>
-/// <param name="timeProvider">Supplies the current time, so date rules are testable.</param>
+/// <param name="clock">Supplies the current date in the schedule's time zone.</param>
+/// <param name="options">Supplies how far ahead a slot may be booked.</param>
 public sealed class BookingService(
     IUnitOfWork unitOfWork,
     IDatabaseConflictDetector conflictDetector,
-    TimeProvider timeProvider) : IBookingService
+    ScheduleClock clock,
+    IOptions<BookingOptions> options) : IBookingService
 {
-    /// <summary>
-    /// How far ahead a slot may be booked. A guard against absurd input rather than a business rule;
-    /// without it a typo in the year would silently create a booking nobody will ever see.
-    /// </summary>
-    private const int MaxDaysAhead = 365;
-
     /// <summary>
     /// The single projection from entity to contract.
     /// </summary>
@@ -59,7 +57,8 @@ public sealed class BookingService(
 
     private readonly IUnitOfWork unitOfWork = unitOfWork;
     private readonly IDatabaseConflictDetector conflictDetector = conflictDetector;
-    private readonly TimeProvider timeProvider = timeProvider;
+    private readonly ScheduleClock clock = clock;
+    private readonly BookingOptions options = options.Value;
 
     /// <inheritdoc />
     public async Task<OperationResult<BookingResponse>> BookAsync(
@@ -68,17 +67,20 @@ public sealed class BookingService(
         Guid userId,
         CancellationToken cancellationToken = default)
     {
-        var today = DateOnly.FromDateTime(this.timeProvider.GetUtcNow().UtcDateTime);
+        // Today in the schedule's time zone, not the server's. A slot's times are local wall-clock
+        // times, so anything else refuses a user their own current day whenever UTC has already
+        // rolled over -- or lets them book one that has ended.
+        var today = this.clock.Today();
 
         if (slotDate < today)
         {
             return OperationResult<BookingResponse>.Invalid("A slot in the past cannot be booked.");
         }
 
-        if (slotDate > today.AddDays(MaxDaysAhead))
+        if (slotDate > today.AddDays(this.options.MaxDaysAhead))
         {
             return OperationResult<BookingResponse>.Invalid(
-                $"Bookings can be made at most {MaxDaysAhead} days ahead.");
+                $"Bookings can be made at most {this.options.MaxDaysAhead} days ahead.");
         }
 
         // This read establishes that the slot EXISTS and that its room still accepts bookings. It is
@@ -106,7 +108,7 @@ public sealed class BookingService(
             SlotDate = slotDate,
             UserId = userId,
             Status = BookingStatus.Active,
-            CreatedUtc = this.timeProvider.GetUtcNow(),
+            CreatedUtc = this.clock.UtcNow(),
         };
 
         this.unitOfWork.Bookings.Add(booking);
@@ -159,7 +161,7 @@ public sealed class BookingService(
         // Cancelling sets the status; it never deletes the row. The index filter is what releases
         // the slot, and keeping the row preserves the history of who held it.
         booking.Status = BookingStatus.Cancelled;
-        booking.CancelledUtc = this.timeProvider.GetUtcNow();
+        booking.CancelledUtc = this.clock.UtcNow();
 
         try
         {

@@ -28,6 +28,9 @@ public static class DependencyInjection
         // past" -- can be tested without waiting for midnight.
         services.TryAddSingletonTimeProvider();
 
+        // Stateless over the clock and the configured time zone, so a singleton.
+        services.AddSingleton<ScheduleClock>();
+
         return services;
     }
 

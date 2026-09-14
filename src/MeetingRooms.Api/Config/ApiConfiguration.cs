@@ -55,6 +55,13 @@ public static class ApiConfiguration
         builder.Services.Configure<SeedOptions>(
             builder.Configuration.GetSection(SeedOptions.SectionName));
 
+        // The time zone is validated when ScheduleClock is first resolved rather than here, because
+        // "is this a zone this machine knows?" is not something data annotations can express.
+        builder.Services.AddOptions<BookingOptions>()
+            .Bind(builder.Configuration.GetSection(BookingOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
         builder.Services.AddScoped<ITokenService, JwtTokenService>();
         builder.Services.AddSingleton<RefreshTokenCookie>();
     }
