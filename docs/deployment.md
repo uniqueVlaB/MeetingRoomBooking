@@ -45,13 +45,41 @@ configuration key is written as an environment variable.
 | `Seed__Enabled` | `true` for the first deployment, so there is an administrator to sign in as. |
 | `Seed__Admin__Email` | The administrator's email address. |
 | `Seed__Admin__Password` | A strong password. Seeding is skipped if the account already exists. |
-| `Booking__TimeZone` | The IANA or Windows time zone for the schedule, e.g. `Europe/Kyiv` or `UTC`. Slots and booking dates are interpreted in this zone, so date rules ("no booking in the past") are correct in every geography. Defaults to `UTC`. |
+| `Booking__TimeZone` | The IANA or Windows time zone for the schedule, e.g. `FLE Standard Time` or `UTC`. Slots and booking dates are interpreted in this zone, so date rules ("no booking in the past") are correct in every geography. Defaults to `UTC`. See [the time-zone identifier caveat](#the-time-zone-identifier-caveat) below before using an IANA name on a Windows Web App. |
 | `Booking__MaxDaysAhead` | How far ahead a slot may be booked, in days; a guard against absurd input. Defaults to `365`. Must be between 1 and 3650. |
 
 Also enable **Web sockets** under Configuration → General settings. SignalR falls back to long
 polling without it, which works but adds latency to every update.
 
 Consider turning `Seed__Enabled` back to `false` once the administrator account exists.
+
+## The time-zone identifier caveat
+
+`ScheduleClock` resolves `Booking:TimeZone` once, at construction, via
+`TimeZoneInfo.FindSystemTimeZoneById`. An identifier that machine does not recognise throws there —
+not at start-up, because .NET validates a time zone lazily rather than at `ValidateOnStart()` — so
+the first request that needs a room's schedule (or anything that touches a booking) gets a bare 500,
+while sign-in keeps working because it is the one set of endpoints that never constructs a
+`ScheduleClock`. That mismatch — auth fine, everything else 500 — is the signature of this exact
+problem, whether the identifier is missing entirely (see [Verifying a
+deployment](#verifying-a-deployment)) or, as below, present but unrecognised.
+
+**An IANA identifier that resolves on your own machine can still fail on the Web App.** `Europe/Kyiv`
+is a case that has actually happened: IANA renamed the zone from `Europe/Kiev` in the tzdata2022a
+release (March 2022), and .NET on Windows resolves an IANA name by translating it through ICU's CLDR
+mapping data, which is bundled with the OS image rather than with .NET itself. A Windows App Service
+instance whose image predates that update recognises `Europe/Kiev` but not `Europe/Kyiv`, even though
+a developer's own up-to-date machine resolves both without complaint — there is no local test that
+would catch this before it reaches Azure.
+
+The reliable fix on a **Windows** Web App is to use the **Windows-native identifier** instead of the
+IANA one — `FLE Standard Time` for the Helsinki/Kyiv/Riga/Sofia/Tallinn/Vilnius zone, for example.
+`TimeZoneInfo.FindSystemTimeZoneById` reads a Windows ID straight from the registry, with no ICU
+translation in the way, so it cannot be out of date the way the IANA path can. This is also why
+`appsettings.json`'s development default is a Windows ID rather than an IANA one, even though the
+application runs cross-platform: it is what actually ships to Azure. A **Linux** Web App has no such
+registry to fall back on and must use the IANA name; if it is on an old enough image to predate a
+tzdata rename, the fix there is updating the image, not the identifier.
 
 ## The cross-site cookie caveat
 

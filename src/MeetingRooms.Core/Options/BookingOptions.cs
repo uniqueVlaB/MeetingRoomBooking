@@ -20,9 +20,17 @@ public sealed class BookingOptions
     /// UTC had rolled over, and a user ahead of it could book a day that had already ended.
     /// </para>
     /// <para>
-    /// An IANA or Windows identifier — <c>Europe/Kyiv</c>, <c>UTC</c>. The system runs on one shared
-    /// office calendar, so this is a single setting rather than a per-room column; if rooms in
+    /// An IANA or Windows identifier — <c>FLE Standard Time</c>, <c>UTC</c>. The system runs on one
+    /// shared office calendar, so this is a single setting rather than a per-room column; if rooms in
     /// different regions are ever needed, this is the value that moves onto the room.
+    /// </para>
+    /// <para>
+    /// On a Windows host, prefer the Windows identifier over its IANA equivalent: resolving an IANA
+    /// name goes through ICU's CLDR mapping data, which ships with the OS image rather than with
+    /// .NET, so a host whose image predates a tzdata rename (<c>Europe/Kiev</c> becoming
+    /// <c>Europe/Kyiv</c> in 2022, for one) fails to resolve a name that works on an up-to-date
+    /// machine. A Windows identifier reads straight from the registry and has no such gap. See
+    /// <c>docs/deployment.md</c>'s "time-zone identifier caveat" section.
     /// </para>
     /// </remarks>
     [Required]
