@@ -46,26 +46,17 @@ header {
   }
 }
 
-textarea {
-  width: 100%;
-  min-height: 12rem;
+// pre-wrap: the note is plain text, written with its own line breaks, and those are exactly what
+// this is supposed to preserve -- a browser's default paragraph collapses them into one run-on line.
+.notes {
+  margin: 0;
   padding: 0.65rem 0.75rem;
-  border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface-raised);
   color: var(--text);
-  font: inherit;
-  font-size: 0.9rem;
-  resize: vertical;
-
-  &:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: -1px;
-  }
-}
-
-.hint {
-  margin: 0;
-  color: var(--text-faint);
-  font-size: 0.78rem;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  max-height: 60vh;
+  overflow-y: auto;
 }

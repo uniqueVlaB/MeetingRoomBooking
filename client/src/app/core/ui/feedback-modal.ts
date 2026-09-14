@@ -3,29 +3,21 @@ import {
   ChangeDetectionStrategy,
   Component,
   ElementRef,
-  effect,
   inject,
-  signal,
   viewChild,
 } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { TranslationService } from '../i18n/translation.service';
-
-/** Where the note is kept. Never sent anywhere -- this is the user's own scratchpad, not a report. */
-const STORAGE_KEY = 'mrb-feedback-notes';
+import { REVIEWER_NOTES } from './reviewer-notes';
 
 /**
- * A personal notes pad, reachable from the topbar, for the person building this project to jot
- * down their own running thoughts on how it is going.
+ * A read-only note for whoever reviews this project, reachable from the red button in the topbar.
  *
- * It is intentionally not a feedback form: nothing here is sent to a server, there is no submit
- * button and no recipient. It autosaves to this browser's storage as the user types, the same way a
- * text editor's buffer would, so the one and only cost of writing something down is closing the
- * dialog.
+ * Not a feedback form: there is nothing here for a visitor to type, no submit button and no
+ * recipient. The text itself is `REVIEWER_NOTES`, written by the project owner in the source and
+ * shipped with the build -- this component only opens and closes the dialog that shows it.
  */
 @Component({
   selector: 'app-feedback-modal',
-  imports: [FormsModule],
   templateUrl: './feedback-modal.html',
   styleUrl: './feedback-modal.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -33,22 +25,10 @@ const STORAGE_KEY = 'mrb-feedback-notes';
 export class FeedbackModalComponent implements AfterViewInit {
   protected readonly i18n = inject(TranslationService);
 
+  /** The note itself, baked into the client -- see `reviewer-notes.ts`. */
+  protected readonly notes = REVIEWER_NOTES;
+
   private readonly dialog = viewChild.required<ElementRef<HTMLDialogElement>>('dialog');
-
-  /** The note's text, kept in memory and mirrored to storage on every change. */
-  protected readonly text = signal(restoreText());
-
-  constructor() {
-    effect(() => {
-      const text = this.text();
-
-      try {
-        localStorage.setItem(STORAGE_KEY, text);
-      } catch {
-        // Private browsing, or storage disabled outright. The note just does not outlive the tab.
-      }
-    });
-  }
 
   /**
    * Closes on a click outside the card.
@@ -98,14 +78,5 @@ export class FeedbackModalComponent implements AfterViewInit {
     } else {
       dialog.removeAttribute('open');
     }
-  }
-}
-
-/** Restores a note left on a previous visit, or an empty pad on a first one. */
-function restoreText(): string {
-  try {
-    return localStorage.getItem(STORAGE_KEY) ?? '';
-  } catch {
-    return '';
   }
 }

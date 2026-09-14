@@ -14,13 +14,6 @@
       </button>
     </header>
 
-    <textarea
-      [placeholder]="i18n.t('shell.feedback.placeholder')"
-      [ngModel]="text()"
-      (ngModelChange)="text.set($event)"
-      rows="10"
-    ></textarea>
-
-    <p class="hint">{{ i18n.t('shell.feedback.hint') }}</p>
+    <p class="notes">{{ notes }}</p>
   </div>
 </dialog>

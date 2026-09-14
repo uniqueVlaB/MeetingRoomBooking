@@ -30,10 +30,8 @@ export const translations = {
     'shell.theme.light': 'Light',
     'shell.theme.dark': 'Dark',
     'shell.feedback.button': 'Feedback',
-    'shell.feedback.ariaLabel': 'Open the feedback notes',
-    'shell.feedback.title': 'My thoughts on how this project goes',
-    'shell.feedback.placeholder': 'Write your thoughts here…',
-    'shell.feedback.hint': 'Saved on this device only, as you type.',
+    'shell.feedback.ariaLabel': 'Open notes for reviewers',
+    'shell.feedback.title': 'Notes for reviewers',
     'shell.feedback.close': 'Close',
 
     // ── Common ──────────────────────────────────────────────────────────────────────────────────
@@ -211,10 +209,8 @@ export const translations = {
     'shell.theme.light': 'Світла',
     'shell.theme.dark': 'Темна',
     'shell.feedback.button': 'Відгук',
-    'shell.feedback.ariaLabel': 'Відкрити нотатки з відгуком',
-    'shell.feedback.title': 'Мої думки щодо цього проєкту',
-    'shell.feedback.placeholder': 'Напишіть свої думки тут…',
-    'shell.feedback.hint': 'Зберігається лише на цьому пристрої, під час набору тексту.',
+    'shell.feedback.ariaLabel': 'Відкрити нотатки для рецензентів',
+    'shell.feedback.title': 'Нотатки для рецензентів',
     'shell.feedback.close': 'Закрити',
 
     // ── Common ──────────────────────────────────────────────────────────────────────────────────
