@@ -1,5 +1,6 @@
 using MeetingRooms.Core.Entities;
 using MeetingRooms.Infrastructure.SQL.Database;
+using Microsoft.EntityFrameworkCore;
 
 namespace MeetingRooms.Tests.Infrastructure;
 
@@ -87,6 +88,77 @@ public static class TestData
     /// <returns>The date.</returns>
     public static DateOnly FutureDate(int daysAhead = 1) =>
         DateOnly.FromDateTime(DateTime.UtcNow.AddDays(daysAhead));
+
+    /// <summary>Creates the Identity roles the API assigns on registration.</summary>
+    /// <remarks>
+    /// Seeding is switched off in the test host, so the roles the seeder would normally create do
+    /// not exist. Registration puts every new account into the <c>User</c> role, and Identity
+    /// throws rather than ignoring a role that is missing, so any test that registers has to
+    /// create them first. Idempotent, because several tests in a run may call it.
+    /// </remarks>
+    /// <param name="dbContext">Context to write through.</param>
+    /// <param name="cancellationToken">Cancels the operation.</param>
+    /// <returns>A task that completes when the roles exist.</returns>
+    public static async Task SeedRolesAsync(
+        AppDbContext dbContext,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(dbContext);
+
+        foreach (var roleName in RoleNames.All)
+        {
+            var normalized = roleName.ToUpperInvariant();
+
+            if (await dbContext.Roles.AnyAsync(role => role.NormalizedName == normalized, cancellationToken))
+            {
+                continue;
+            }
+
+            dbContext.Roles.Add(new ApplicationRole(roleName)
+            {
+                NormalizedName = normalized,
+            });
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>Inserts a booking directly, bypassing the API.</summary>
+    /// <remarks>
+    /// Lets a test arrange state the API cannot produce on demand -- a cancelled booking, or one
+    /// belonging to another user -- without driving several requests to get there.
+    /// </remarks>
+    /// <param name="dbContext">Context to write through.</param>
+    /// <param name="timeSlotId">Slot to book.</param>
+    /// <param name="slotDate">Date to book it for.</param>
+    /// <param name="userId">Owner of the booking.</param>
+    /// <param name="status">Whether the booking is active or already cancelled.</param>
+    /// <param name="cancellationToken">Cancels the operation.</param>
+    /// <returns>The created booking.</returns>
+    public static async Task<Booking> SeedBookingAsync(
+        AppDbContext dbContext,
+        Guid timeSlotId,
+        DateOnly slotDate,
+        Guid userId,
+        BookingStatus status = BookingStatus.Active,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(dbContext);
+
+        var booking = new Booking
+        {
+            TimeSlotId = timeSlotId,
+            SlotDate = slotDate,
+            UserId = userId,
+            Status = status,
+            CancelledUtc = status == BookingStatus.Cancelled ? DateTimeOffset.UtcNow : null,
+        };
+
+        dbContext.Bookings.Add(booking);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return booking;
+    }
 
     /// <summary>Builds an unsaved user with unique, valid Identity fields.</summary>
     /// <returns>The user.</returns>
