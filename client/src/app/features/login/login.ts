@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { describeError } from '../../core/http/describe-error';
+import { TranslationService } from '../../core/i18n/translation.service';
 
 /** The shortest password the API will accept, mirrored here so the form can say so up front. */
 const MIN_PASSWORD_LENGTH = 8;
@@ -22,6 +23,8 @@ export class LoginComponent {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+
+  protected readonly i18n = inject(TranslationService);
 
   /** The shortest acceptable password, for the hint under the field. */
   protected readonly minPasswordLength = MIN_PASSWORD_LENGTH;
@@ -87,7 +90,7 @@ export class LoginComponent {
       const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl') ?? '/rooms';
       await this.router.navigateByUrl(returnUrl);
     } catch (error) {
-      this.error.set(describeError(error));
+      this.error.set(describeError(error, (key, params) => this.i18n.t(key, params)));
     } finally {
       this.busy.set(false);
     }
@@ -103,19 +106,19 @@ export class LoginComponent {
    */
   private validate(): string | null {
     if (this.registering() && this.displayName().trim().length < MIN_DISPLAY_NAME_LENGTH) {
-      return `Enter a display name of at least ${MIN_DISPLAY_NAME_LENGTH} characters.`;
+      return this.i18n.t('login.validate.displayName', { count: MIN_DISPLAY_NAME_LENGTH });
     }
 
     if (!this.email().includes('@')) {
-      return 'Enter an email address.';
+      return this.i18n.t('login.validate.email');
     }
 
     if (this.password().length === 0) {
-      return 'Enter your password.';
+      return this.i18n.t('login.validate.password');
     }
 
     if (this.registering() && this.password().length < MIN_PASSWORD_LENGTH) {
-      return `Choose a password of at least ${MIN_PASSWORD_LENGTH} characters.`;
+      return this.i18n.t('login.validate.passwordLength', { count: MIN_PASSWORD_LENGTH });
     }
 
     return null;

@@ -1,14 +1,7 @@
 <header class="page-head">
   <div>
-    <h1>My bookings</h1>
-    <p class="subtitle">
-      @if (!loading() && !loadFailed() && bookings().length > 0) {
-        {{ bookings().length }} slot{{ bookings().length === 1 ? '' : 's' }} across
-        {{ days().length }} day{{ days().length === 1 ? '' : 's' }}.
-      } @else {
-        Slots you are currently holding.
-      }
-    </p>
+    <h1>{{ i18n.t('myBookings.title') }}</h1>
+    <p class="subtitle">{{ subtitle() }}</p>
   </div>
 </header>
 
@@ -17,7 +10,11 @@
 }
 
 @if (loading()) {
-  <ul class="bookings skeleton" role="status" aria-label="Loading your bookings">
+  <ul
+    class="bookings skeleton"
+    role="status"
+    [attr.aria-label]="i18n.t('myBookings.loading.ariaLabel')"
+  >
     @for (row of skeletonRows; track row) {
       <li aria-hidden="true">
         <span class="ghost-bar when"></span>
@@ -29,23 +26,23 @@
 } @else if (loadFailed()) {
   <!-- Never claim the list is empty on the strength of a request that failed. -->
   <div class="empty">
-    <p class="empty-title">Your bookings could not be loaded.</p>
-    <p class="empty-detail">The server did not answer, or the session has expired.</p>
-    <button type="button" class="primary" (click)="retry()">Try again</button>
+    <p class="empty-title">{{ i18n.t('myBookings.loadError.title') }}</p>
+    <p class="empty-detail">{{ i18n.t('myBookings.loadError.detail') }}</p>
+    <button type="button" class="primary" (click)="retry()">{{ i18n.t('common.tryAgain') }}</button>
   </div>
 } @else if (bookings().length === 0) {
   <div class="empty">
-    <p class="empty-title">You have no bookings.</p>
-    <p class="empty-detail">Pick a room to see which of its slots are still free today.</p>
-    <a class="button-link" routerLink="/rooms">Find a room</a>
+    <p class="empty-title">{{ i18n.t('myBookings.empty.title') }}</p>
+    <p class="empty-detail">{{ i18n.t('myBookings.empty.detail') }}</p>
+    <a class="button-link" routerLink="/rooms">{{ i18n.t('myBookings.empty.findRoom') }}</a>
   </div>
 } @else {
   @for (day of days(); track day.date) {
     <section class="day-group" [class.past]="day.past">
       <h2>
         <span class="day-name">{{ day.label }}</span>
-        @if (day.relative; as label) {
-          <span class="chip" [class.now]="label === 'Today'">{{ label }}</span>
+        @if (day.relative; as key) {
+          <span class="chip" [class.now]="day.isToday">{{ i18n.t(key) }}</span>
         }
       </h2>
 
@@ -68,7 +65,11 @@
               [attr.aria-busy]="pendingBookingId() === booking.id"
               (click)="cancel(booking)"
             >
-              {{ pendingBookingId() === booking.id ? 'Cancelling…' : 'Cancel' }}
+              {{
+                pendingBookingId() === booking.id
+                  ? i18n.t('myBookings.cancelling')
+                  : i18n.t('myBookings.cancel')
+              }}
             </button>
           </li>
         }

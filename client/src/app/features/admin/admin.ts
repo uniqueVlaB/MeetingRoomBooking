@@ -6,8 +6,17 @@ import { RoomsService } from '../../core/api/rooms.service';
 import { formatDayShort, relativeDay } from '../../core/format/date';
 import { formatSlotTime } from '../../core/format/time';
 import { describeError } from '../../core/http/describe-error';
+import { TranslationService } from '../../core/i18n/translation.service';
+import { TranslationKey } from '../../core/i18n/translations';
 import { Booking, Room, TimeSlotRequest } from '../../core/models';
 import { Notice, failure, info } from '../../core/ui/notice';
+
+/** The translation key for each day-relative code `relativeDay()` can return. */
+const RELATIVE_DAY_LABELS: Record<'today' | 'tomorrow' | 'yesterday', TranslationKey> = {
+  today: 'date.today',
+  tomorrow: 'date.tomorrow',
+  yesterday: 'date.yesterday',
+};
 
 /**
  * Administration: manage the room catalogue and see every user's bookings.
@@ -26,6 +35,8 @@ import { Notice, failure, info } from '../../core/ui/notice';
 export class AdminComponent {
   private readonly roomsApi = inject(RoomsService);
   private readonly bookingsApi = inject(BookingsService);
+
+  protected readonly i18n = inject(TranslationService);
 
   protected readonly rooms = signal<Room[]>([]);
   protected readonly bookings = signal<Booking[]>([]);
@@ -98,7 +109,11 @@ export class AdminComponent {
 
   /** Formats "2026-09-20" as "Today" where that applies, and "Sun 20 Sept" otherwise. */
   protected formatDate(date: string): string {
-    return relativeDay(date) ?? formatDayShort(date);
+    const code = relativeDay(date);
+
+    return code
+      ? this.i18n.t(RELATIVE_DAY_LABELS[code])
+      : formatDayShort(date, this.i18n.dateLocale());
   }
 
   /** Whether a row has a destructive action awaiting confirmation. */
@@ -136,11 +151,11 @@ export class AdminComponent {
       this.rooms.update((current) =>
         [...current, room].sort((a, b) => a.name.localeCompare(b.name)),
       );
-      this.notice.set(info(`Created ${room.name}.`));
+      this.notice.set(info(this.i18n.t('admin.createdNotice', { name: room.name })));
       this.name.set('');
       this.location.set('');
     } catch (error) {
-      this.notice.set(failure(describeError(error)));
+      this.notice.set(failure(this.describeError(error)));
     } finally {
       this.creating.set(false);
     }
@@ -162,9 +177,11 @@ export class AdminComponent {
       this.rooms.update((current) =>
         current.map((candidate) => (candidate.id === updated.id ? updated : candidate)),
       );
-      this.notice.set(info(`${updated.isActive ? 'Restored' : 'Retired'} ${updated.name}.`));
+
+      const key: TranslationKey = updated.isActive ? 'admin.restoredNotice' : 'admin.retiredNotice';
+      this.notice.set(info(this.i18n.t(key, { name: updated.name })));
     } catch (error) {
-      this.notice.set(failure(describeError(error)));
+      this.notice.set(failure(this.describeError(error)));
     } finally {
       this.pendingRowId.set(null);
     }
@@ -186,13 +203,13 @@ export class AdminComponent {
 
       this.notice.set(
         info(
-          retired
-            ? `Retired ${room.name}. It has bookings, so the room is kept for their history and simply accepts no new ones.`
-            : `Removed ${room.name}.`,
+          this.i18n.t(retired ? 'admin.deletedRetiredNotice' : 'admin.deletedRemovedNotice', {
+            name: room.name,
+          }),
         ),
       );
     } catch (error) {
-      this.notice.set(failure(describeError(error)));
+      this.notice.set(failure(this.describeError(error)));
     } finally {
       this.pendingRowId.set(null);
     }
@@ -207,9 +224,11 @@ export class AdminComponent {
     try {
       await this.bookingsApi.cancel(booking.id);
       this.bookings.update((current) => current.filter((candidate) => candidate.id !== booking.id));
-      this.notice.set(info(`Cancelled the ${booking.roomName} booking.`));
+      this.notice.set(
+        info(this.i18n.t('admin.cancelledBookingNotice', { room: booking.roomName })),
+      );
     } catch (error) {
-      this.notice.set(failure(describeError(error)));
+      this.notice.set(failure(this.describeError(error)));
     } finally {
       this.pendingRowId.set(null);
     }
@@ -219,6 +238,11 @@ export class AdminComponent {
   protected async retry(): Promise<void> {
     this.notice.set(null);
     await this.load();
+  }
+
+  /** Turns a failed request into the user's current language. */
+  private describeError(error: unknown): string {
+    return describeError(error, (key, params) => this.i18n.t(key, params));
   }
 
   /** Expands the opening hours into a list of slots. */
@@ -251,7 +275,7 @@ export class AdminComponent {
       await this.refresh();
       this.loadFailed.set(false);
     } catch (error) {
-      this.notice.set(failure(describeError(error)));
+      this.notice.set(failure(this.describeError(error)));
       this.loadFailed.set(true);
     } finally {
       this.loading.set(false);
