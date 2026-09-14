@@ -6,11 +6,17 @@ import {
   provideBrowserGlobalErrorListeners,
   provideZonelessChangeDetection,
 } from '@angular/core';
-import { provideRouter, withComponentInputBinding } from '@angular/router';
+import {
+  TitleStrategy,
+  provideRouter,
+  withComponentInputBinding,
+  withInMemoryScrolling,
+} from '@angular/router';
 import { routes } from './app.routes';
 import { authInterceptor } from './core/auth/auth.interceptor';
 import { AuthService } from './core/auth/auth.service';
 import { AppConfig } from './core/config/app-config.service';
+import { AppTitleStrategy } from './core/ui/title-strategy';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -24,7 +30,16 @@ export const appConfig: ApplicationConfig = {
 
     // withComponentInputBinding lets route parameters arrive as signal inputs, so a component reads
     // :roomId as an input() rather than subscribing to the ActivatedRoute.
-    provideRouter(routes, withComponentInputBinding()),
+    //
+    // Scroll restoration is not the default and its absence is visible: leaving a long admin page
+    // for the room list arrived halfway down, and going back did not return to where the user was.
+    provideRouter(
+      routes,
+      withComponentInputBinding(),
+      withInMemoryScrolling({ scrollPositionRestoration: 'enabled', anchorScrolling: 'enabled' }),
+    ),
+
+    { provide: TitleStrategy, useClass: AppTitleStrategy },
 
     provideHttpClient(withInterceptors([authInterceptor])),
 
