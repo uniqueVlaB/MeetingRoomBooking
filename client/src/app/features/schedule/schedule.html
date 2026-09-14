@@ -6,11 +6,17 @@
   <div>
     <h1>{{ schedule()?.roomName ?? 'Schedule' }}</h1>
     @if (schedule(); as loaded) {
-      <p class="subtitle">{{ freeCount() }} of {{ slots().length }} slots free on {{ loaded.date }}</p>
+      <p class="subtitle">
+        {{ freeCount() }} of {{ slots().length }} slots free on {{ loaded.date }}
+      </p>
     }
   </div>
 
-  <span class="live" [class.on]="isLive()" [title]="isLive() ? 'Live updates connected' : 'Not receiving live updates'">
+  <span
+    class="live"
+    [class.on]="isLive()"
+    [title]="isLive() ? 'Live updates connected' : 'Not receiving live updates'"
+  >
     <span class="dot" aria-hidden="true"></span>
     {{ isLive() ? 'Live' : 'Offline' }}
   </span>
