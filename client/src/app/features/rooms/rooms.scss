@@ -1,3 +1,14 @@
+.filter {
+  // The label is for screen readers only, so the grid the global `label` rule sets up would leave a
+  // gap above the input where nothing is drawn.
+  display: block;
+  min-width: 15rem;
+
+  input {
+    font-size: 0.9rem;
+  }
+}
+
 .rooms {
   list-style: none;
   margin: 0;
@@ -39,4 +50,21 @@
   gap: 0.75rem;
   color: var(--text-muted);
   font-size: 0.85rem;
+}
+
+// Placeholder cards on the same grid as the real ones, so the catalogue does not jump when it
+// arrives.
+.skeleton {
+  .room {
+    gap: 0.6rem;
+  }
+
+  .name {
+    width: 60%;
+    height: 1rem;
+  }
+
+  .meta {
+    width: 85%;
+  }
 }

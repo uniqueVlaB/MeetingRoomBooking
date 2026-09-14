@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { BookingsService } from '../../core/api/bookings.service';
 import { RoomsService } from '../../core/api/rooms.service';
 import { AuthService } from '../../core/auth/auth.service';
+import { shiftIsoDate, todayIso } from '../../core/format/date';
 import { Booking, Schedule } from '../../core/models';
 import { BookingHubService } from '../../core/realtime/booking-hub.service';
 import { ScheduleComponent } from './schedule';
@@ -137,6 +138,12 @@ interface Internals {
   slots: () => Schedule['slots'];
   loading: () => boolean;
   loadFailed: () => boolean;
+  isToday: () => boolean;
+  isPast: () => boolean;
+  dayLabel: () => string;
+  freePercent: () => number;
+  goToToday: () => void;
+  shiftDate: (days: number) => void;
   book: (slot: Schedule['slots'][number]) => Promise<void>;
   cancel: (slot: Schedule['slots'][number]) => Promise<void>;
 }
@@ -308,5 +315,72 @@ describe('ScheduleComponent', () => {
     // The connection is shared and stays open; staying in the group would have the server fan
     // messages out to a page with nothing left to render them.
     expect(hub.unwatched).toBe(1);
+  });
+  describe('the date bar', () => {
+    it('starts on today', () => {
+      expect(component.isToday()).toBe(true);
+      expect(component.isPast()).toBe(false);
+    });
+
+    it('comes back to today in one step from anywhere', async () => {
+      component.date.set('2027-04-11');
+      await fixture.whenStable();
+
+      expect(component.isToday()).toBe(false);
+
+      // Before this the only way back was the date picker or as many clicks on the arrow as days
+      // had been stepped through.
+      component.goToToday();
+      await fixture.whenStable();
+
+      expect(component.isToday()).toBe(true);
+    });
+
+    it('says when the day being shown has already gone', async () => {
+      component.date.set(shiftIsoDate(todayIso(), -1));
+      await fixture.whenStable();
+
+      // A past day's grid looks exactly like a future one, and the server refuses bookings on it.
+      expect(component.isPast()).toBe(true);
+    });
+
+    it('steps across a month boundary', async () => {
+      component.date.set('2026-09-30');
+      await fixture.whenStable();
+
+      component.shiftDate(1);
+      await fixture.whenStable();
+
+      expect(component.dayLabel()).toBe('Thursday, 1 October 2026');
+    });
+
+    it('writes the date out rather than showing the form the API sends', async () => {
+      component.date.set('2026-09-20');
+      await fixture.whenStable();
+
+      expect(component.dayLabel()).toBe('Sunday, 20 September 2026');
+    });
+  });
+
+  describe('the availability summary', () => {
+    it('reports the share of the day still free', async () => {
+      component.date.set('2026-09-20');
+      await fixture.whenStable();
+
+      rooms.settle('2026-09-20');
+      await fixture.whenStable();
+
+      expect(component.freePercent()).toBe(100);
+
+      await component.book(component.slots()[0]);
+      await fixture.whenStable();
+
+      expect(component.freePercent()).toBe(50);
+    });
+
+    it('reports nothing free rather than dividing by zero on a room with no slots', async () => {
+      // An empty schedule reaches this computed before the template decides not to draw it.
+      expect(component.freePercent()).toBe(0);
+    });
   });
 });

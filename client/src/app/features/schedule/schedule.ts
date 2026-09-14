@@ -15,6 +15,13 @@ import { RouterLink } from '@angular/router';
 import { BookingsService } from '../../core/api/bookings.service';
 import { RoomsService } from '../../core/api/rooms.service';
 import { AuthService } from '../../core/auth/auth.service';
+import {
+  formatDayLong,
+  isPastDay,
+  relativeDay,
+  shiftIsoDate,
+  todayIso,
+} from '../../core/format/date';
 import { formatSlotTime } from '../../core/format/time';
 import { describeError } from '../../core/http/describe-error';
 import { Booking, Schedule, ScheduleSlot } from '../../core/models';
@@ -75,6 +82,15 @@ export class ScheduleComponent {
    */
   protected readonly loadFailed = signal(false);
 
+  /**
+   * Placeholder rows drawn while a schedule loads.
+   *
+   * Six is a typical working day at hourly slots. Standing in for the list at roughly its real
+   * height is the point: a one-line "Loading…" collapses the page and it snaps back a moment later,
+   * which moves whatever the user was about to click.
+   */
+  protected readonly skeletonRows = [0, 1, 2, 3, 4, 5];
+
   /** The slot currently being booked or cancelled, so only that row shows a spinner. */
   protected readonly pendingSlotId = signal<string | null>(null);
 
@@ -91,6 +107,32 @@ export class ScheduleComponent {
   protected readonly freeCount = computed(
     () => this.slots().filter((slot) => !slot.isBooked).length,
   );
+
+  /** The proportion of the day still free, for the availability bar. */
+  protected readonly freePercent = computed(() => {
+    const total = this.slots().length;
+
+    return total === 0 ? 0 : Math.round((this.freeCount() / total) * 100);
+  });
+
+  /** The date being shown, written out: "Sunday, 20 September 2026". */
+  protected readonly dayLabel = computed(() => formatDayLong(this.date()));
+
+  /** "Today", "Tomorrow" or "Yesterday" when the date is one of them, else null. */
+  protected readonly dayRelative = computed(() => relativeDay(this.date()));
+
+  /** Whether the view is already on today, so the shortcut back has nothing to do. */
+  protected readonly isToday = computed(() => this.date() === todayIso());
+
+  /**
+   * Whether the day being shown has already gone.
+   *
+   * Said out loud rather than left to the user to work out from the date, because the schedule for
+   * a past day looks exactly like the schedule for a future one. The Book buttons stay live: the
+   * server decides what is bookable, in the rooms' own time zone, and a browser clock in a
+   * different zone would otherwise refuse a day the server would have accepted.
+   */
+  protected readonly isPast = computed(() => isPastDay(this.date()));
 
   constructor() {
     // Reloads and re-subscribes whenever the room or the date changes. Both happen through signals,
@@ -236,9 +278,12 @@ export class ScheduleComponent {
 
   /** Moves the view by a number of days. */
   protected shiftDate(days: number): void {
-    const moved = new Date(`${this.date()}T00:00:00`);
-    moved.setDate(moved.getDate() + days);
-    this.date.set(toIso(moved));
+    this.date.set(shiftIsoDate(this.date(), days));
+  }
+
+  /** Returns to today, which is otherwise several clicks away once the user has wandered. */
+  protected goToToday(): void {
+    this.date.set(todayIso());
   }
 
   /** Loads the schedule for a room and date, discarding a response newer work has superseded. */
@@ -332,17 +377,4 @@ export class ScheduleComponent {
       slots: current.slots.map((slot) => (slot.timeSlotId === timeSlotId ? update(slot) : slot)),
     });
   }
-}
-
-/** Today as `yyyy-MM-dd` in the browser's local time zone. */
-function todayIso(): string {
-  return toIso(new Date());
-}
-
-/** Formats a date as `yyyy-MM-dd`, avoiding the UTC shift that `toISOString` would introduce. */
-function toIso(value: Date): string {
-  const month = `${value.getMonth() + 1}`.padStart(2, '0');
-  const day = `${value.getDate()}`.padStart(2, '0');
-
-  return `${value.getFullYear()}-${month}-${day}`;
 }

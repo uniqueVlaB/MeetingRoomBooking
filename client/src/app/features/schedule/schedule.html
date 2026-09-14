@@ -5,13 +5,18 @@
 <header class="page-head">
   <div>
     <h1>{{ schedule()?.roomName ?? 'Schedule' }}</h1>
-    @if (schedule(); as loaded) {
-      @if (!loading()) {
-        <p class="subtitle">
-          {{ freeCount() }} of {{ slots().length }} slots free on {{ loaded.date }}
-        </p>
+
+    <!--
+      The date the user is looking at, spelled out. It used to appear only as "2026-09-20" inside
+      the free-slot count, which is the API's format rather than anything a person reads: whether
+      that is a Saturday matters more here than the digits do.
+    -->
+    <p class="subtitle day">
+      {{ dayLabel() }}
+      @if (dayRelative(); as label) {
+        <span class="chip" [class.now]="isToday()">{{ label }}</span>
       }
-    }
+    </p>
   </div>
 
   <!--
@@ -48,10 +53,26 @@
 }
 
 <div class="date-bar">
-  <button type="button" class="ghost" (click)="shiftDate(-1)" aria-label="Previous day">‹</button>
-  <input type="date" [ngModel]="date()" (ngModelChange)="date.set($event)" aria-label="Date" />
-  <button type="button" class="ghost" (click)="shiftDate(1)" aria-label="Next day">›</button>
+  <div class="stepper">
+    <button type="button" class="ghost" (click)="shiftDate(-1)" aria-label="Previous day">‹</button>
+    <input type="date" [ngModel]="date()" (ngModelChange)="date.set($event)" aria-label="Date" />
+    <button type="button" class="ghost" (click)="shiftDate(1)" aria-label="Next day">›</button>
+  </div>
+
+  <!--
+    Disabled rather than hidden, so the control does not appear and disappear as the user steps
+    through days -- and so its disabled state answers "which day am I on?" without being read.
+  -->
+  <button type="button" class="ghost" [disabled]="isToday()" (click)="goToToday()">Today</button>
 </div>
+
+@if (isPast() && !loading()) {
+  <!--
+    A past day's grid is indistinguishable from a future one, and the server will refuse a booking
+    on it. Saying so beforehand is better than letting the user find out by being rejected.
+  -->
+  <p class="notice" role="status">This day has already passed; it is shown for reference.</p>
+}
 
 @if (notice(); as message) {
   <!--
@@ -71,15 +92,38 @@
   displaying -- and the Cancel button in those rows still carries the old day's booking id.
 -->
 @if (loading()) {
-  <p class="muted" role="status" aria-live="polite">Loading schedule…</p>
+  <!--
+    Placeholder rows rather than a line of text: a schedule is a fixed-height list, so standing in
+    for it keeps the page from collapsing and snapping back on every date change.
+  -->
+  <ul class="slots skeleton" role="status" aria-label="Loading schedule">
+    @for (row of skeletonRows; track row) {
+      <li class="slot" aria-hidden="true">
+        <span class="ghost-bar time"></span>
+        <span class="ghost-bar"></span>
+        <span class="ghost-bar action"></span>
+      </li>
+    }
+  </ul>
 } @else if (loadFailed()) {
-  <p class="muted">
-    The schedule could not be loaded.
-    <button type="button" class="link" (click)="retry()">Try again</button>
-  </p>
+  <div class="empty">
+    <p class="empty-title">The schedule could not be loaded.</p>
+    <p class="empty-detail">The server did not answer, or the session has expired.</p>
+    <button type="button" class="primary" (click)="retry()">Try again</button>
+  </div>
 } @else if (slots().length === 0) {
-  <p class="muted">This room has no bookable slots.</p>
+  <div class="empty">
+    <p class="empty-title">This room has no bookable slots.</p>
+    <p class="empty-detail">An administrator sets a room’s daily slots when creating it.</p>
+  </div>
 } @else {
+  <p class="availability">
+    <span class="meter" aria-hidden="true">
+      <span class="meter-fill" [style.width.%]="freePercent()"></span>
+    </span>
+    <span>{{ freeCount() }} of {{ slots().length }} slots free</span>
+  </p>
+
   <ul class="slots">
     @for (slot of slots(); track slot.timeSlotId) {
       <li class="slot" [class.booked]="slot.isBooked" [class.mine]="isMine(slot)">
