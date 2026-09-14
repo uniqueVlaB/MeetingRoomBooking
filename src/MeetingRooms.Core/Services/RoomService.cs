@@ -226,23 +226,45 @@ public sealed class RoomService(
             return OperationResult<RoomResponse>.NotFound($"Room '{roomId}' does not exist.");
         }
 
+        // Retiring first is what makes the decision below safe. Between reading the booking count
+        // and acting on it there is a window in which somebody books the room, and deleting it then
+        // would cascade the slots and silently take that booking with them. Clearing IsActive closes
+        // the window: BookAsync refuses an inactive room, so no booking can appear after this save.
+        room.IsActive = false;
+
+        try
+        {
+            await this.unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return OperationResult<RoomResponse>.Conflict(
+                "That room was changed by somebody else. Reload and try again.");
+        }
+
         var hasBookings = await this.unitOfWork.Bookings
             .QueryAsNoTracking()
             .AnyAsync(booking => booking.TimeSlot!.RoomId == roomId, cancellationToken);
 
         if (hasBookings)
         {
-            // Deleting would cascade the room's slots and take the booking history with them, so a
-            // room that has ever been booked is retired instead. The catalogue stays honest and past
-            // bookings keep a valid foreign key.
-            room.IsActive = false;
-        }
-        else
-        {
-            this.unitOfWork.Rooms.Remove(room);
+            // A room that has ever been booked stays as a retired row, so the catalogue remains
+            // honest and past bookings keep a valid foreign key.
+            return OperationResult<RoomResponse>.Success(Project(room));
         }
 
-        await this.unitOfWork.SaveChangesAsync(cancellationToken);
+        this.unitOfWork.Rooms.Remove(room);
+
+        try
+        {
+            await this.unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Somebody edited the room between the two saves. It is already retired, which is the
+            // outcome that matters; leaving the row behind is harmless.
+            return OperationResult<RoomResponse>.Success(Project(room));
+        }
 
         return OperationResult<RoomResponse>.Success(Project(room));
     }
