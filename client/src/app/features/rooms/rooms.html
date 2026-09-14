@@ -3,17 +3,53 @@
     <h1>Rooms</h1>
     <p class="subtitle">Choose a room to see which slots are free.</p>
   </div>
+
+  @if (filterable()) {
+    <label class="filter">
+      <span class="visually-hidden">Filter rooms</span>
+      <input
+        type="search"
+        placeholder="Filter by name or location"
+        [ngModel]="query()"
+        (ngModelChange)="query.set($event)"
+      />
+    </label>
+  }
 </header>
 
 @if (loading()) {
-  <p class="muted">Loading rooms…</p>
+  <ul class="rooms skeleton" role="status" aria-label="Loading rooms">
+    @for (card of skeletonCards; track card) {
+      <li aria-hidden="true">
+        <span class="room">
+          <span class="ghost-bar name"></span>
+          <span class="ghost-bar meta"></span>
+        </span>
+      </li>
+    }
+  </ul>
 } @else if (error(); as message) {
-  <p class="notice error" role="alert">{{ message }}</p>
+  <div class="empty">
+    <p class="empty-title">The rooms could not be loaded.</p>
+    <p class="empty-detail">{{ message }}</p>
+    <button type="button" class="primary" (click)="retry()">Try again</button>
+  </div>
 } @else if (rooms().length === 0) {
-  <p class="muted">No rooms yet. An administrator can add one.</p>
+  <div class="empty">
+    <p class="empty-title">No rooms yet.</p>
+    <p class="empty-detail">An administrator can add one from the Admin page.</p>
+  </div>
+} @else if (visibleRooms().length === 0) {
+  <!-- An empty grid because of the filter is a different problem from an empty catalogue, and the
+       way out of it is different too. -->
+  <div class="empty">
+    <p class="empty-title">No room matches “{{ query() }}”.</p>
+    <p class="empty-detail">Try part of a room’s name, or the floor or building it is on.</p>
+    <button type="button" class="ghost" (click)="clearQuery()">Clear the filter</button>
+  </div>
 } @else {
   <ul class="rooms">
-    @for (room of rooms(); track room.id) {
+    @for (room of visibleRooms(); track room.id) {
       <li>
         <a class="room" [routerLink]="['/rooms', room.id, 'schedule']">
           <span class="name">

@@ -49,15 +49,40 @@
   }
 }
 
-.date-bar {
+.day {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.date-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
   margin-bottom: 1rem;
+}
+
+// The two arrows and the picker are one control: stepping a day and typing a date do the same
+// thing, and spacing them apart made the arrows read as unrelated buttons.
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
 
   input {
     width: auto;
   }
+}
+
+.availability {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0 0 0.6rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
 }
 
 .slots {
@@ -124,5 +149,23 @@
   .status {
     grid-column: 1 / -1;
     order: 3;
+  }
+}
+
+// Placeholder rows, laid out on the same grid as the real ones so the list does not resize when the
+// schedule arrives.
+.skeleton {
+  .time {
+    width: 6.5rem;
+  }
+
+  .ghost-bar:not(.time):not(.action) {
+    width: 45%;
+  }
+
+  .action {
+    width: 4.25rem;
+    height: 1.9rem;
+    border-radius: 7px;
   }
 }
