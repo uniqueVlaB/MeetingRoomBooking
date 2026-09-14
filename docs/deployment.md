@@ -45,6 +45,8 @@ configuration key is written as an environment variable.
 | `Seed__Enabled` | `true` for the first deployment, so there is an administrator to sign in as. |
 | `Seed__Admin__Email` | The administrator's email address. |
 | `Seed__Admin__Password` | A strong password. Seeding is skipped if the account already exists. |
+| `Booking__TimeZone` | The IANA or Windows time zone for the schedule, e.g. `Europe/Kyiv` or `UTC`. Slots and booking dates are interpreted in this zone, so date rules ("no booking in the past") are correct in every geography. Defaults to `UTC`. |
+| `Booking__MaxDaysAhead` | How far ahead a slot may be booked, in days; a guard against absurd input. Defaults to `365`. Must be between 1 and 3650. |
 
 Also enable **Web sockets** under Configuration → General settings. SignalR falls back to long
 polling without it, which works but adds latency to every update.
