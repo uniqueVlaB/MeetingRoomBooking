@@ -1,13 +1,13 @@
 <section class="card">
-  <h1>{{ registering() ? 'Create an account' : 'Sign in' }}</h1>
+  <h1>{{ registering() ? i18n.t('login.register.title') : i18n.t('login.signIn.title') }}</h1>
   <p class="subtitle">
-    {{ registering() ? 'New accounts can view rooms and book slots.' : 'Book a meeting room.' }}
+    {{ registering() ? i18n.t('login.register.subtitle') : i18n.t('login.signIn.subtitle') }}
   </p>
 
   <form (ngSubmit)="submit()">
     @if (registering()) {
       <label>
-        Display name
+        {{ i18n.t('login.field.displayName') }}
         <input
           name="displayName"
           [ngModel]="displayName()"
@@ -18,7 +18,7 @@
     }
 
     <label>
-      Email
+      {{ i18n.t('login.field.email') }}
       <input
         name="email"
         type="email"
@@ -29,7 +29,7 @@
     </label>
 
     <label>
-      Password
+      {{ i18n.t('login.field.password') }}
       <span class="password-field">
         <input
           name="password"
@@ -49,12 +49,12 @@
           [attr.aria-pressed]="showPassword()"
           (click)="togglePasswordVisibility()"
         >
-          {{ showPassword() ? 'Hide' : 'Show' }}
+          {{ showPassword() ? i18n.t('login.hidePassword') : i18n.t('login.showPassword') }}
         </button>
       </span>
 
       @if (registering()) {
-        <span class="hint">At least {{ minPasswordLength }} characters.</span>
+        <span class="hint">{{ i18n.t('login.passwordHint', { count: minPasswordLength }) }}</span>
       }
     </label>
 
@@ -63,11 +63,17 @@
     }
 
     <button type="submit" class="primary block" [disabled]="busy()">
-      {{ busy() ? 'Please wait…' : registering() ? 'Create account' : 'Sign in' }}
+      {{
+        busy()
+          ? i18n.t('login.submit.busy')
+          : registering()
+            ? i18n.t('login.submit.register')
+            : i18n.t('login.submit.signIn')
+      }}
     </button>
   </form>
 
   <button type="button" class="link" (click)="toggleMode()">
-    {{ registering() ? 'I already have an account' : 'Create an account instead' }}
+    {{ registering() ? i18n.t('login.toggle.toSignIn') : i18n.t('login.toggle.toRegister') }}
   </button>
 </section>

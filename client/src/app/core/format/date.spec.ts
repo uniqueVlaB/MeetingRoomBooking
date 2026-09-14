@@ -40,7 +40,7 @@ describe('date formatting', () => {
   });
 
   it('names today as today', () => {
-    expect(relativeDay(todayIso())).toBe('Today');
+    expect(relativeDay(todayIso())).toBe('today');
   });
 
   describe('shifting by days', () => {
@@ -79,18 +79,24 @@ describe('date formatting', () => {
       expect(formatDayShort('2026-09-20')).toMatch(/^Sun 20 Sept?$/);
     });
 
-    it('puts the day before the month, matching the rest of the interface', () => {
-      // A fixed locale is the point: left to the host this would read "9/20/2026" on a US machine
-      // while every neighbouring string stayed British English.
+    it('puts the day before the month, matching the default English formatting', () => {
+      // A fixed default locale is the point: left to the host this would read "9/20/2026" on a US
+      // machine while every neighbouring string stayed British English.
       expect(formatDayLong('2026-01-02')).toBe('Friday, 2 January 2026');
+    });
+
+    it('formats in another language when asked, weekday and month included', () => {
+      // The point of taking a locale rather than hardcoding one: switching the application's
+      // language must translate the date too, not just the labels around it.
+      expect(formatDayLong('2026-09-20', 'uk-UA')).toBe('неділя, 20 вересня 2026 р.');
     });
   });
 
   describe('relative naming', () => {
     it('names the three days a booking system is mostly about', () => {
-      expect(relativeDay('2026-09-20', '2026-09-20')).toBe('Today');
-      expect(relativeDay('2026-09-21', '2026-09-20')).toBe('Tomorrow');
-      expect(relativeDay('2026-09-19', '2026-09-20')).toBe('Yesterday');
+      expect(relativeDay('2026-09-20', '2026-09-20')).toBe('today');
+      expect(relativeDay('2026-09-21', '2026-09-20')).toBe('tomorrow');
+      expect(relativeDay('2026-09-19', '2026-09-20')).toBe('yesterday');
     });
 
     it('declines to name a date further off', () => {
@@ -101,8 +107,15 @@ describe('date formatting', () => {
     });
 
     it('crosses a month boundary', () => {
-      expect(relativeDay('2026-10-01', '2026-09-30')).toBe('Tomorrow');
-      expect(relativeDay('2026-09-30', '2026-10-01')).toBe('Yesterday');
+      expect(relativeDay('2026-10-01', '2026-09-30')).toBe('tomorrow');
+      expect(relativeDay('2026-09-30', '2026-10-01')).toBe('yesterday');
+    });
+
+    it('returns a code, not display text, so the caller translates it', () => {
+      // Guards the contract the shell relies on: relativeDay used to return the English word
+      // itself, which meant it could only ever be shown in English. A component that forgot to
+      // translate the code and rendered it directly would show "today", not "Today" or "Сьогодні".
+      expect(relativeDay('2026-09-20', '2026-09-20')).not.toBe('Today');
     });
   });
 

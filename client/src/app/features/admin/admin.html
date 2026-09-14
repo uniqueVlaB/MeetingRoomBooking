@@ -1,7 +1,7 @@
 <header class="page-head">
   <div>
-    <h1>Administration</h1>
-    <p class="subtitle">Manage rooms and see every booking.</p>
+    <h1>{{ i18n.t('admin.title') }}</h1>
+    <p class="subtitle">{{ i18n.t('admin.subtitle') }}</p>
   </div>
 </header>
 
@@ -15,22 +15,22 @@
 }
 
 <section class="panel">
-  <h2>Add a room</h2>
+  <h2>{{ i18n.t('admin.addRoom.heading') }}</h2>
 
   <form (ngSubmit)="createRoom()">
     <div class="grid">
       <label>
-        Name
+        {{ i18n.t('admin.field.name') }}
         <input name="name" required [ngModel]="name()" (ngModelChange)="name.set($event)" />
       </label>
 
       <label>
-        Location
+        {{ i18n.t('admin.field.location') }}
         <input name="location" [ngModel]="location()" (ngModelChange)="location.set($event)" />
       </label>
 
       <label>
-        Seats
+        {{ i18n.t('admin.field.seats') }}
         <input
           type="number"
           name="capacity"
@@ -42,7 +42,7 @@
       </label>
 
       <label>
-        Opens
+        {{ i18n.t('admin.field.opens') }}
         <input
           type="number"
           name="openHour"
@@ -54,7 +54,7 @@
       </label>
 
       <label>
-        Closes
+        {{ i18n.t('admin.field.closes') }}
         <input
           type="number"
           name="closeHour"
@@ -66,7 +66,7 @@
       </label>
 
       <label>
-        Slot length (min)
+        {{ i18n.t('admin.field.slotLength') }}
         <input
           type="number"
           name="slotMinutes"
@@ -86,27 +86,35 @@
     -->
     <p class="preview" [class.warn]="slotPreview().length === 0" role="status" aria-live="polite">
       @if (slotPreview().length > 0) {
-        Creates <strong>{{ slotPreview().length }}</strong> slot{{
-          slotPreview().length === 1 ? '' : 's'
-        }}, {{ formatTime(slotPreview()[0].startTime) }} to
-        {{ formatTime(slotPreview()[slotPreview().length - 1].endTime) }}.
+        {{ i18n.t('admin.preview.prefix') }}
+        <strong>{{ slotPreview().length }}</strong>
+        {{ i18n.plural('admin.preview.unit', slotPreview().length) }},
+        {{
+          i18n.t('admin.preview.range', {
+            start: formatTime(slotPreview()[0].startTime),
+            end: formatTime(slotPreview()[slotPreview().length - 1].endTime),
+          })
+        }}
       } @else {
-        These hours produce no slots. The closing hour must be at least one slot length after the
-        opening hour.
+        {{ i18n.t('admin.preview.empty') }}
       }
     </p>
 
     <button type="submit" class="primary" [disabled]="creating() || !canCreate()">
-      {{ creating() ? 'Creating…' : 'Create room' }}
+      {{ creating() ? i18n.t('admin.creating') : i18n.t('admin.create') }}
     </button>
   </form>
 </section>
 
 <section class="panel">
-  <h2>Rooms</h2>
+  <h2>{{ i18n.t('admin.rooms.heading') }}</h2>
 
   @if (loading()) {
-    <ul class="rows skeleton" role="status" aria-label="Loading rooms">
+    <ul
+      class="rows skeleton"
+      role="status"
+      [attr.aria-label]="i18n.t('admin.rooms.loading.ariaLabel')"
+    >
       @for (row of skeletonRows; track row) {
         <li aria-hidden="true">
           <span class="ghost-bar"></span>
@@ -117,13 +125,15 @@
     </ul>
   } @else if (loadFailed()) {
     <div class="empty">
-      <p class="empty-title">Rooms could not be loaded.</p>
-      <button type="button" class="primary" (click)="retry()">Try again</button>
+      <p class="empty-title">{{ i18n.t('admin.rooms.error.title') }}</p>
+      <button type="button" class="primary" (click)="retry()">
+        {{ i18n.t('common.tryAgain') }}
+      </button>
     </div>
   } @else if (rooms().length === 0) {
     <div class="empty">
-      <p class="empty-title">No rooms yet.</p>
-      <p class="empty-detail">Add one with the form above.</p>
+      <p class="empty-title">{{ i18n.t('admin.rooms.empty.title') }}</p>
+      <p class="empty-detail">{{ i18n.t('admin.rooms.empty.detail') }}</p>
     </div>
   } @else {
     <ul class="rows">
@@ -132,11 +142,16 @@
           <span class="primary-cell">
             <a [routerLink]="['/rooms', room.id, 'schedule']">{{ room.name }}</a>
             @if (!room.isActive) {
-              <span class="tag">Retired</span>
+              <span class="tag">{{ i18n.t('common.retired') }}</span>
             }
           </span>
           <span class="muted">
-            {{ room.timeSlots.length }} slots · seats {{ room.capacity }}
+            {{
+              i18n.t('admin.rooms.summary', {
+                slots: room.timeSlots.length,
+                capacity: room.capacity,
+              })
+            }}
             @if (room.location) {
               · {{ room.location }}
             }
@@ -155,7 +170,7 @@
               [attr.aria-busy]="isPending(room.id)"
               (click)="toggleActive(room)"
             >
-              {{ room.isActive ? 'Retire' : 'Restore' }}
+              {{ room.isActive ? i18n.t('admin.retire') : i18n.t('admin.restore') }}
             </button>
 
             <!--
@@ -172,11 +187,13 @@
               [attr.aria-busy]="isPending(room.id)"
               (click)="isConfirming(room.id) ? deleteRoom(room) : toggleConfirm(room.id)"
             >
-              {{ isConfirming(room.id) ? 'Confirm delete' : 'Delete' }}
+              {{ isConfirming(room.id) ? i18n.t('admin.confirmDelete') : i18n.t('admin.delete') }}
             </button>
 
             @if (isConfirming(room.id)) {
-              <button type="button" class="link" (click)="toggleConfirm(room.id)">Keep</button>
+              <button type="button" class="link" (click)="toggleConfirm(room.id)">
+                {{ i18n.t('common.keep') }}
+              </button>
             }
           </span>
         </li>
@@ -186,10 +203,14 @@
 </section>
 
 <section class="panel">
-  <h2>All bookings</h2>
+  <h2>{{ i18n.t('admin.bookings.heading') }}</h2>
 
   @if (loading()) {
-    <ul class="rows skeleton" role="status" aria-label="Loading bookings">
+    <ul
+      class="rows skeleton"
+      role="status"
+      [attr.aria-label]="i18n.t('admin.bookings.loading.ariaLabel')"
+    >
       @for (row of skeletonRows; track row) {
         <li aria-hidden="true">
           <span class="ghost-bar"></span>
@@ -200,12 +221,14 @@
     </ul>
   } @else if (loadFailed()) {
     <div class="empty">
-      <p class="empty-title">Bookings could not be loaded.</p>
-      <button type="button" class="primary" (click)="retry()">Try again</button>
+      <p class="empty-title">{{ i18n.t('admin.bookings.error.title') }}</p>
+      <button type="button" class="primary" (click)="retry()">
+        {{ i18n.t('common.tryAgain') }}
+      </button>
     </div>
   } @else if (bookings().length === 0) {
     <div class="empty">
-      <p class="empty-title">Nothing is booked.</p>
+      <p class="empty-title">{{ i18n.t('admin.bookings.empty.title') }}</p>
     </div>
   } @else {
     <ul class="rows">
@@ -229,11 +252,15 @@
                 isConfirming(booking.id) ? cancelBooking(booking) : toggleConfirm(booking.id)
               "
             >
-              {{ isConfirming(booking.id) ? 'Confirm cancel' : 'Cancel' }}
+              {{
+                isConfirming(booking.id) ? i18n.t('admin.confirmCancel') : i18n.t('common.cancel')
+              }}
             </button>
 
             @if (isConfirming(booking.id)) {
-              <button type="button" class="link" (click)="toggleConfirm(booking.id)">Keep</button>
+              <button type="button" class="link" (click)="toggleConfirm(booking.id)">
+                {{ i18n.t('common.keep') }}
+              </button>
             }
           </span>
         </li>

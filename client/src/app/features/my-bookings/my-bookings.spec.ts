@@ -155,11 +155,13 @@ describe('MyBookingsComponent', () => {
 
       const [yesterday, now, tomorrow] = component.days();
 
-      expect(yesterday.relative).toBe('Yesterday');
+      // `relative` is a translation key, not display text -- see date.ts's relativeDay(), which
+      // returns a code so the label can be shown in whichever language is currently chosen.
+      expect(yesterday.relative).toBe('date.yesterday');
       expect(yesterday.past).toBe(true);
-      expect(now.relative).toBe('Today');
+      expect(now.relative).toBe('date.today');
       expect(now.past).toBe(false);
-      expect(tomorrow.relative).toBe('Tomorrow');
+      expect(tomorrow.relative).toBe('date.tomorrow');
       expect(tomorrow.past).toBe(false);
     });
 

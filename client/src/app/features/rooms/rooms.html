@@ -1,15 +1,15 @@
 <header class="page-head">
   <div>
-    <h1>Rooms</h1>
-    <p class="subtitle">Choose a room to see which slots are free.</p>
+    <h1>{{ i18n.t('rooms.title') }}</h1>
+    <p class="subtitle">{{ i18n.t('rooms.subtitle') }}</p>
   </div>
 
   @if (filterable()) {
     <label class="filter">
-      <span class="visually-hidden">Filter rooms</span>
+      <span class="visually-hidden">{{ i18n.t('rooms.filter.label') }}</span>
       <input
         type="search"
-        placeholder="Filter by name or location"
+        [placeholder]="i18n.t('rooms.filter.placeholder')"
         [ngModel]="query()"
         (ngModelChange)="query.set($event)"
       />
@@ -18,7 +18,7 @@
 </header>
 
 @if (loading()) {
-  <ul class="rooms skeleton" role="status" aria-label="Loading rooms">
+  <ul class="rooms skeleton" role="status" [attr.aria-label]="i18n.t('rooms.loading.ariaLabel')">
     @for (card of skeletonCards; track card) {
       <li aria-hidden="true">
         <span class="room">
@@ -30,22 +30,24 @@
   </ul>
 } @else if (error(); as message) {
   <div class="empty">
-    <p class="empty-title">The rooms could not be loaded.</p>
+    <p class="empty-title">{{ i18n.t('rooms.error.title') }}</p>
     <p class="empty-detail">{{ message }}</p>
-    <button type="button" class="primary" (click)="retry()">Try again</button>
+    <button type="button" class="primary" (click)="retry()">{{ i18n.t('common.tryAgain') }}</button>
   </div>
 } @else if (rooms().length === 0) {
   <div class="empty">
-    <p class="empty-title">No rooms yet.</p>
-    <p class="empty-detail">An administrator can add one from the Admin page.</p>
+    <p class="empty-title">{{ i18n.t('rooms.empty.title') }}</p>
+    <p class="empty-detail">{{ i18n.t('rooms.empty.detail') }}</p>
   </div>
 } @else if (visibleRooms().length === 0) {
   <!-- An empty grid because of the filter is a different problem from an empty catalogue, and the
        way out of it is different too. -->
   <div class="empty">
-    <p class="empty-title">No room matches “{{ query() }}”.</p>
-    <p class="empty-detail">Try part of a room’s name, or the floor or building it is on.</p>
-    <button type="button" class="ghost" (click)="clearQuery()">Clear the filter</button>
+    <p class="empty-title">{{ i18n.t('rooms.noMatch.title', { query: query() }) }}</p>
+    <p class="empty-detail">{{ i18n.t('rooms.noMatch.detail') }}</p>
+    <button type="button" class="ghost" (click)="clearQuery()">
+      {{ i18n.t('rooms.noMatch.clear') }}
+    </button>
   </div>
 } @else {
   <ul class="rooms">
@@ -55,15 +57,15 @@
           <span class="name">
             {{ room.name }}
             @if (!room.isActive) {
-              <span class="tag">Retired</span>
+              <span class="tag">{{ i18n.t('common.retired') }}</span>
             }
           </span>
           <span class="meta">
             @if (room.location) {
               <span>{{ room.location }}</span>
             }
-            <span>Seats {{ room.capacity }}</span>
-            <span>{{ room.timeSlots.length }} slots/day</span>
+            <span>{{ i18n.t('rooms.seats', { count: room.capacity }) }}</span>
+            <span>{{ i18n.plural('rooms.slotsPerDay', room.timeSlots.length) }}</span>
           </span>
         </a>
       </li>

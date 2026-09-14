@@ -49,8 +49,61 @@
   }
 }
 
-.account {
+.toolbar {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+// A small group of mutually-exclusive choices -- language, theme -- styled as one pill rather than
+// as separate buttons, so the current choice reads at a glance without a dropdown to open first.
+.segmented {
+  display: inline-flex;
+  padding: 0.15rem;
+  border-radius: 8px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+
+  button {
+    padding: 0.25rem 0.55rem;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    font-weight: 550;
+
+    &:hover:not(.active) {
+      color: var(--text);
+    }
+
+    &.active {
+      background: var(--surface);
+      color: var(--accent);
+      box-shadow: 0 1px 2px rgb(0 0 0 / 8%);
+    }
+  }
+}
+
+// Deliberately a strong colour rather than the muted `.ghost` the rest of the header uses: this is
+// the one button in the shell that is not part of the booking workflow, and it should not read as
+// though it is.
+.feedback-button {
+  border: 1px solid var(--danger);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-weight: 600;
+
+  &:hover {
+    background: var(--danger);
+    border-color: var(--danger);
+    color: #fff;
+  }
+}
+
+.account {
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -83,8 +136,9 @@
     gap: 0.75rem;
   }
 
-  .account {
+  .toolbar {
     margin-left: 0;
+    width: 100%;
   }
 
   // Ellipsised rather than wrapped: a long display name was pushing Sign out onto its own line and
