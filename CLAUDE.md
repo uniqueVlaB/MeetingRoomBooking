@@ -38,6 +38,9 @@ dotnet test                               # needs Docker (for Testcontainers), o
 
 cd client && npm start                    # client alone, proxying /api and /hubs
 cd client && npm run build
+cd client && npm test -- --no-watch       # vitest
+cd client && npm run lint                 # eslint
+cd client && npm run format:check         # prettier; `npm run format` rewrites
 
 # Migrations. Infrastructure.SQL is both the project and the startup project, because it owns the
 # design-time factory and nothing else needs to be configured for the tools to run.
@@ -65,11 +68,22 @@ Related invariants:
 - Cancel by setting `Status = Cancelled`, never by deleting the row. The index filter is what
   releases the slot, and the row is history.
 - Broadcast **after** the write commits, and through `IBookingNotifier` rather than `IHubContext`,
-  so flows stay testable.
+  so flows stay testable. Pass `CancellationToken.None`, not the request's token: the write is
+  already committed, and a caller that disconnects must not take everyone else's update with it.
+- Refresh-token rotation is the other read-then-write in the system. It is guarded by
+  `RefreshToken.RowVersion` and **fails closed** — a rotation that cannot prove it was the only one
+  returns the same "session expired" answer an unknown token gets. See `docs/concurrency.md`.
+- "What day is it?" goes through `ScheduleClock`, never `DateTime.UtcNow`. Slots carry local
+  wall-clock times, so the date rules are only correct in the configured `Booking:TimeZone`.
 
 ## Conventions
 
-- Warnings are errors (`Directory.Build.props`), and public members carry XML documentation.
+- Warnings are errors (`Directory.Build.props`), and public members carry XML documentation. The
+  build is expected to be warning-free; an MSBuild warning from an imported `.targets` file is not
+  promoted by `TreatWarningsAsErrors`, so suppress it deliberately with a reason rather than leaving
+  it to scroll past.
+- The client is linted (`eslint.config.js`) and formatted (Prettier), and CI enforces both. Never
+  hand-format around Prettier — run `npm run format`.
 - Package versions live in `Directory.Packages.props`. Do not add a `Version` to a `PackageReference`.
 - Core must not gain a SQL Server dependency. Provider-specific knowledge goes behind an abstraction
   in `Core/Abstractions` and is implemented in `Infrastructure.SQL`.
@@ -85,6 +99,11 @@ Related invariants:
   in AppHost user secrets locally and Web App settings in Azure.
 - Client: standalone components, signals, `OnPush`, lazy routes. TypeScript models mirror server
   contracts exactly. The access token stays in memory; never put it in `localStorage`.
+- Client naming: an injected API client takes an `Api` suffix (`roomsApi`), leaving the plain noun
+  (`rooms`) for the state signal it fills. Shared helpers live in `core/` — `describeError`,
+  `formatSlotTime`, `Notice` — and are never re-declared in a component.
+- A screen that writes must apply the server's own response, not wait for the SignalR echo. The hub
+  being down is a survivable state the code handles, and in it the echo never arrives.
 
 ## Commits
 
