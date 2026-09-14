@@ -18,6 +18,38 @@ form {
   margin-top: 1.25rem;
 }
 
+// The reveal button sits inside the field rather than beside it, so the two read as one control.
+.password-field {
+  display: block;
+  position: relative;
+
+  input {
+    // Room for the button, so a long password does not run underneath it.
+    padding-right: 3.75rem;
+  }
+}
+
+.reveal {
+  position: absolute;
+  top: 50%;
+  right: 0.35rem;
+  transform: translateY(-50%);
+  padding: 0.2rem 0.45rem;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+
+  &:hover {
+    color: var(--accent);
+  }
+}
+
+.hint {
+  color: var(--text-faint);
+  font-size: 0.78rem;
+}
+
 // Layout only; the link appearance itself is shared in styles.scss.
 .link {
   display: block;

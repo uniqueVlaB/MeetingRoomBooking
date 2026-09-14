@@ -10,8 +10,6 @@
         Display name
         <input
           name="displayName"
-          required
-          minlength="2"
           [ngModel]="displayName()"
           (ngModelChange)="displayName.set($event)"
           autocomplete="name"
@@ -24,7 +22,6 @@
       <input
         name="email"
         type="email"
-        required
         [ngModel]="email()"
         (ngModelChange)="email.set($event)"
         autocomplete="username"
@@ -33,15 +30,32 @@
 
     <label>
       Password
-      <input
-        name="password"
-        type="password"
-        required
-        minlength="8"
-        [ngModel]="password()"
-        (ngModelChange)="password.set($event)"
-        [attr.autocomplete]="registering() ? 'new-password' : 'current-password'"
-      />
+      <span class="password-field">
+        <input
+          name="password"
+          [type]="showPassword() ? 'text' : 'password'"
+          [ngModel]="password()"
+          (ngModelChange)="password.set($event)"
+          [attr.autocomplete]="registering() ? 'new-password' : 'current-password'"
+        />
+
+        <!--
+          The label says what pressing it will do, not what the field is doing now, because that is
+          what a button's name is read as.
+        -->
+        <button
+          type="button"
+          class="reveal"
+          [attr.aria-pressed]="showPassword()"
+          (click)="togglePasswordVisibility()"
+        >
+          {{ showPassword() ? 'Hide' : 'Show' }}
+        </button>
+      </span>
+
+      @if (registering()) {
+        <span class="hint">At least {{ minPasswordLength }} characters.</span>
+      }
     </label>
 
     @if (error(); as message) {
