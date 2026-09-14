@@ -9,11 +9,11 @@
   <p class="muted">Loading rooms…</p>
 } @else if (error(); as message) {
   <p class="notice error" role="alert">{{ message }}</p>
-} @else if (list().length === 0) {
+} @else if (rooms().length === 0) {
   <p class="muted">No rooms yet. An administrator can add one.</p>
 } @else {
   <ul class="rooms">
-    @for (room of list(); track room.id) {
+    @for (room of rooms(); track room.id) {
       <li>
         <a class="room" [routerLink]="['/rooms', room.id, 'schedule']">
           <span class="name">

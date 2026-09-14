@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { BookingsService } from '../../core/api/bookings.service';
+import { formatSlotTime } from '../../core/format/time';
+import { describeError } from '../../core/http/describe-error';
 import { Booking } from '../../core/models';
 
 /** The signed-in user's own bookings, with the option to release one. */
@@ -12,11 +14,11 @@ import { Booking } from '../../core/models';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MyBookingsComponent {
-  private readonly bookings = inject(BookingsService);
+  private readonly bookingsApi = inject(BookingsService);
 
-  protected readonly list = signal<Booking[]>([]);
+  protected readonly bookings = signal<Booking[]>([]);
   protected readonly loading = signal(true);
-  protected readonly pendingId = signal<string | null>(null);
+  protected readonly pendingBookingId = signal<string | null>(null);
   protected readonly error = signal<string | null>(null);
 
   constructor() {
@@ -25,22 +27,24 @@ export class MyBookingsComponent {
 
   /** Formats "09:00:00" as "09:00". */
   protected formatTime(time: string): string {
-    return time.slice(0, 5);
+    return formatSlotTime(time);
   }
 
   /** Cancels a booking and drops it from the list. */
   protected async cancel(booking: Booking): Promise<void> {
-    this.pendingId.set(booking.id);
+    this.pendingBookingId.set(booking.id);
     this.error.set(null);
 
     try {
-      await this.bookings.cancel(booking.id);
-      this.list.update((current) => current.filter((candidate) => candidate.id !== booking.id));
-    } catch {
-      this.error.set('That booking could not be cancelled. It may already be gone.');
+      await this.bookingsApi.cancel(booking.id);
+      this.bookings.update((current) => current.filter((candidate) => candidate.id !== booking.id));
+    } catch (error) {
+      // The server's own explanation: "that booking has already been cancelled" and "you can only
+      // cancel your own bookings" are different problems with different answers.
+      this.error.set(describeError(error));
       await this.load();
     } finally {
-      this.pendingId.set(null);
+      this.pendingBookingId.set(null);
     }
   }
 
@@ -49,9 +53,9 @@ export class MyBookingsComponent {
     this.loading.set(true);
 
     try {
-      this.list.set(await this.bookings.listMine());
-    } catch {
-      this.error.set('Your bookings could not be loaded.');
+      this.bookings.set(await this.bookingsApi.listMine());
+    } catch (error) {
+      this.error.set(describeError(error));
     } finally {
       this.loading.set(false);
     }

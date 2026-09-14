@@ -1,8 +1,8 @@
-import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
+import { describeError } from '../../core/http/describe-error';
 
 /** Sign in, or create an account. Both paths start a session and continue to the requested page. */
 @Component({
@@ -58,13 +58,4 @@ export class LoginComponent {
       this.busy.set(false);
     }
   }
-}
-
-/** Turns an error into something worth showing a user. */
-function describeError(error: unknown): string {
-  if (error instanceof HttpErrorResponse) {
-    return error.error?.detail ?? error.error?.title ?? `Request failed (${error.status}).`;
-  }
-
-  return 'Something went wrong. Please try again.';
 }

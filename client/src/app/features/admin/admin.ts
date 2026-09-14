@@ -1,10 +1,12 @@
-import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { BookingsService } from '../../core/api/bookings.service';
 import { RoomsService } from '../../core/api/rooms.service';
+import { formatSlotTime } from '../../core/format/time';
+import { describeError } from '../../core/http/describe-error';
 import { Booking, Room, TimeSlotRequest } from '../../core/models';
+import { Notice, failure, info } from '../../core/ui/notice';
 
 /**
  * Administration: manage the room catalogue and see every user's bookings.
@@ -21,14 +23,14 @@ import { Booking, Room, TimeSlotRequest } from '../../core/models';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AdminComponent {
-  private readonly rooms = inject(RoomsService);
-  private readonly bookings = inject(BookingsService);
+  private readonly roomsApi = inject(RoomsService);
+  private readonly bookingsApi = inject(BookingsService);
 
-  protected readonly roomList = signal<Room[]>([]);
-  protected readonly allBookings = signal<Booking[]>([]);
+  protected readonly rooms = signal<Room[]>([]);
+  protected readonly bookings = signal<Booking[]>([]);
   protected readonly loading = signal(true);
   protected readonly busy = signal(false);
-  protected readonly notice = signal<{ kind: 'info' | 'error'; text: string } | null>(null);
+  protected readonly notice = signal<Notice | null>(null);
 
   protected readonly name = signal('');
   protected readonly location = signal('');
@@ -43,7 +45,7 @@ export class AdminComponent {
 
   /** Formats "09:00:00" as "09:00". */
   protected formatTime(time: string): string {
-    return time.slice(0, 5);
+    return formatSlotTime(time);
   }
 
   /** Creates a room from the form. */
@@ -52,19 +54,21 @@ export class AdminComponent {
     this.notice.set(null);
 
     try {
-      const room = await this.rooms.createRoom({
+      const room = await this.roomsApi.createRoom({
         name: this.name(),
         location: this.location() || null,
         capacity: this.capacity(),
         timeSlots: this.buildSlots(),
       });
 
-      this.roomList.update((current) => [...current, room].sort((a, b) => a.name.localeCompare(b.name)));
-      this.notice.set({ kind: 'info', text: `Created ${room.name}.` });
+      this.rooms.update((current) =>
+        [...current, room].sort((a, b) => a.name.localeCompare(b.name)),
+      );
+      this.notice.set(info(`Created ${room.name}.`));
       this.name.set('');
       this.location.set('');
     } catch (error) {
-      this.notice.set({ kind: 'error', text: describeError(error) });
+      this.notice.set(failure(describeError(error)));
     } finally {
       this.busy.set(false);
     }
@@ -76,18 +80,18 @@ export class AdminComponent {
     this.notice.set(null);
 
     try {
-      const updated = await this.rooms.updateRoom(room.id, {
+      const updated = await this.roomsApi.updateRoom(room.id, {
         name: room.name,
         location: room.location,
         capacity: room.capacity,
         isActive: !room.isActive,
       });
 
-      this.roomList.update((current) =>
+      this.rooms.update((current) =>
         current.map((candidate) => (candidate.id === updated.id ? updated : candidate)),
       );
     } catch (error) {
-      this.notice.set({ kind: 'error', text: describeError(error) });
+      this.notice.set(failure(describeError(error)));
     } finally {
       this.busy.set(false);
     }
@@ -99,14 +103,22 @@ export class AdminComponent {
     this.notice.set(null);
 
     try {
-      await this.rooms.deleteRoom(room.id);
+      await this.roomsApi.deleteRoom(room.id);
       await this.load();
-      this.notice.set({
-        kind: 'info',
-        text: `Removed ${room.name}. Rooms with bookings are retired rather than deleted, so their history survives.`,
-      });
+
+      // The server decides between deleting and retiring, and answers 204 either way, so the
+      // reloaded list is what says which happened.
+      const retired = this.rooms().some((candidate) => candidate.id === room.id);
+
+      this.notice.set(
+        info(
+          retired
+            ? `Retired ${room.name}. It has bookings, so the room is kept for their history and simply accepts no new ones.`
+            : `Removed ${room.name}.`,
+        ),
+      );
     } catch (error) {
-      this.notice.set({ kind: 'error', text: describeError(error) });
+      this.notice.set(failure(describeError(error)));
     } finally {
       this.busy.set(false);
     }
@@ -115,12 +127,13 @@ export class AdminComponent {
   /** Cancels somebody else's booking. */
   protected async cancelBooking(booking: Booking): Promise<void> {
     this.busy.set(true);
+    this.notice.set(null);
 
     try {
-      await this.bookings.cancel(booking.id);
-      this.allBookings.update((current) => current.filter((candidate) => candidate.id !== booking.id));
+      await this.bookingsApi.cancel(booking.id);
+      this.bookings.update((current) => current.filter((candidate) => candidate.id !== booking.id));
     } catch (error) {
-      this.notice.set({ kind: 'error', text: describeError(error) });
+      this.notice.set(failure(describeError(error)));
     } finally {
       this.busy.set(false);
     }
@@ -131,7 +144,11 @@ export class AdminComponent {
     const slots: TimeSlotRequest[] = [];
     const step = this.slotMinutes();
 
-    for (let minutes = this.openHour() * 60; minutes + step <= this.closeHour() * 60; minutes += step) {
+    for (
+      let minutes = this.openHour() * 60;
+      minutes + step <= this.closeHour() * 60;
+      minutes += step
+    ) {
       slots.push({ startTime: toTime(minutes), endTime: toTime(minutes + step) });
     }
 
@@ -144,14 +161,14 @@ export class AdminComponent {
 
     try {
       const [rooms, bookings] = await Promise.all([
-        this.rooms.listRooms(),
-        this.bookings.listAll(),
+        this.roomsApi.listRooms(),
+        this.bookingsApi.listAll(),
       ]);
 
-      this.roomList.set(rooms);
-      this.allBookings.set(bookings);
+      this.rooms.set(rooms);
+      this.bookings.set(bookings);
     } catch (error) {
-      this.notice.set({ kind: 'error', text: describeError(error) });
+      this.notice.set(failure(describeError(error)));
     } finally {
       this.loading.set(false);
     }
@@ -164,13 +181,4 @@ function toTime(minutes: number): string {
   const remainder = `${minutes % 60}`.padStart(2, '0');
 
   return `${hours}:${remainder}:00`;
-}
-
-/** Turns an error into something worth showing a user. */
-function describeError(error: unknown): string {
-  if (error instanceof HttpErrorResponse) {
-    return error.error?.detail ?? error.error?.title ?? `Request failed (${error.status}).`;
-  }
-
-  return 'Something went wrong. Please try again.';
 }

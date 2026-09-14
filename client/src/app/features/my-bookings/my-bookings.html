@@ -11,20 +11,22 @@
 
 @if (loading()) {
   <p class="muted">Loading…</p>
-} @else if (list().length === 0) {
+} @else if (bookings().length === 0) {
   <p class="muted">You have no bookings. <a routerLink="/rooms">Find a room</a>.</p>
 } @else {
   <ul class="bookings">
-    @for (booking of list(); track booking.id) {
+    @for (booking of bookings(); track booking.id) {
       <li>
         <span class="when">
           <strong>{{ booking.slotDate }}</strong>
           {{ formatTime(booking.startTime) }} – {{ formatTime(booking.endTime) }}
         </span>
 
-        <a class="room" [routerLink]="['/rooms', booking.roomId, 'schedule']">{{ booking.roomName }}</a>
+        <a class="room" [routerLink]="['/rooms', booking.roomId, 'schedule']">{{
+          booking.roomName
+        }}</a>
 
-        @if (pendingId() === booking.id) {
+        @if (pendingBookingId() === booking.id) {
           <span class="muted">Cancelling…</span>
         } @else {
           <button type="button" class="ghost" (click)="cancel(booking)">Cancel</button>
