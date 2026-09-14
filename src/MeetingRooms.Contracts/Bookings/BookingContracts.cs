@@ -2,12 +2,18 @@ using System.ComponentModel.DataAnnotations;
 
 namespace MeetingRooms.Contracts.Bookings;
 
-/// <summary>Request to book one slot on one date.</summary>
+/// <summary>
+/// Request to book one slot on one date.
+/// </summary>
+/// <remarks>
+/// No <c>[Required]</c> on either member: on a non-nullable value type the attribute always passes,
+/// so it would advertise a check that does not exist. An absent or malformed value fails model
+/// binding instead, and <see cref="Guid.Empty"/> is rejected where it means something — by the slot
+/// lookup in the booking service, which finds no such slot.
+/// </remarks>
 /// <param name="TimeSlotId">The slot to book.</param>
 /// <param name="SlotDate">The date to book it for.</param>
-public sealed record CreateBookingRequest(
-    [Required] Guid TimeSlotId,
-    [Required] DateOnly SlotDate);
+public sealed record CreateBookingRequest(Guid TimeSlotId, DateOnly SlotDate);
 
 /// <summary>
 /// A booking, as returned from the API and broadcast over SignalR.

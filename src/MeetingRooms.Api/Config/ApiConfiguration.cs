@@ -20,6 +20,7 @@ public static class ApiConfiguration
         ArgumentNullException.ThrowIfNull(builder);
 
         builder.AddOptionsConfiguration();
+        builder.AddAuthSupportServices();
         builder.Services.AddCorsConfiguration(builder.Configuration);
         builder.AddRealtimeConfiguration();
 
@@ -61,7 +62,12 @@ public static class ApiConfiguration
             .Bind(builder.Configuration.GetSection(BookingOptions.SectionName))
             .ValidateDataAnnotations()
             .ValidateOnStart();
+    }
 
+    /// <summary>Registers the pieces of the auth surface that live in the API layer.</summary>
+    /// <param name="builder">The host application builder.</param>
+    private static void AddAuthSupportServices(this WebApplicationBuilder builder)
+    {
         builder.Services.AddScoped<ITokenService, JwtTokenService>();
         builder.Services.AddSingleton<RefreshTokenCookie>();
     }

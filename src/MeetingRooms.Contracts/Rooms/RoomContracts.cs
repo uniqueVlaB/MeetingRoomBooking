@@ -24,12 +24,17 @@ public sealed record RoomResponse(
     bool IsActive,
     IReadOnlyList<TimeSlotResponse> TimeSlots);
 
-/// <summary>A slot to create as part of a room's template.</summary>
+/// <summary>
+/// A slot to create as part of a room's template.
+/// </summary>
+/// <remarks>
+/// No <c>[Required]</c>: on a non-nullable value type it always passes. The rule that actually
+/// matters here — end after start — spans two fields and lives in
+/// <c>CreateRoomRequestValidator</c>.
+/// </remarks>
 /// <param name="StartTime">Local start time.</param>
 /// <param name="EndTime">Local end time, which must be after the start.</param>
-public sealed record TimeSlotRequest(
-    [Required] TimeOnly StartTime,
-    [Required] TimeOnly EndTime);
+public sealed record TimeSlotRequest(TimeOnly StartTime, TimeOnly EndTime);
 
 /// <summary>Request to create a room together with its daily slots.</summary>
 /// <param name="Name">Display name, unique among rooms.</param>

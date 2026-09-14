@@ -39,7 +39,7 @@ public sealed class SqlServerConflictDetector : IDatabaseConflictDetector
     /// as "this slot is already booked".
     /// </param>
     /// <returns><see langword="true"/> if the exception represents that unique violation.</returns>
-    public static bool IsUniqueViolation(Exception exception, string? indexName)
+    private static bool IsUniqueViolation(Exception exception, string? indexName)
     {
         ArgumentNullException.ThrowIfNull(exception);
 

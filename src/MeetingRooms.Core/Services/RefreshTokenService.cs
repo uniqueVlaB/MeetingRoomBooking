@@ -1,4 +1,6 @@
+using System.Buffers.Text;
 using System.Security.Cryptography;
+using System.Text;
 using MeetingRooms.Core.Abstractions;
 using MeetingRooms.Core.Entities;
 using MeetingRooms.Core.Options;
@@ -131,7 +133,7 @@ public sealed class RefreshTokenService(
     /// <param name="rawToken">The raw token value.</param>
     /// <returns>The hex-encoded SHA-256 hash.</returns>
     private static string Hash(string rawToken) =>
-        Convert.ToHexStringLower(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(rawToken)));
+        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(rawToken)));
 
     /// <summary>Generates a token and its unsaved entity.</summary>
     /// <param name="userId">The user the token belongs to.</param>
@@ -139,7 +141,7 @@ public sealed class RefreshTokenService(
     private (string RawToken, RefreshToken Entity) CreateToken(Guid userId)
     {
         // Base64Url so the value is safe in a cookie without further encoding.
-        var rawToken = Base64UrlEncode(RandomNumberGenerator.GetBytes(TokenBytes));
+        var rawToken = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(TokenBytes));
         var now = this.timeProvider.GetUtcNow();
 
         var entity = new RefreshToken
@@ -152,10 +154,4 @@ public sealed class RefreshTokenService(
 
         return (rawToken, entity);
     }
-
-    /// <summary>Encodes bytes using the URL- and cookie-safe base64 alphabet.</summary>
-    /// <param name="bytes">The bytes to encode.</param>
-    /// <returns>The encoded string, without padding.</returns>
-    private static string Base64UrlEncode(byte[] bytes) =>
-        Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
 }

@@ -109,6 +109,8 @@ public sealed class RoomsController(IRoomService roomService, ScheduleClock cloc
         [FromBody] CreateRoomRequest request,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         var result = await this.roomService.CreateRoomAsync(request, cancellationToken);
 
         return result.IsSuccess && result.Value is not null
@@ -134,6 +136,8 @@ public sealed class RoomsController(IRoomService roomService, ScheduleClock cloc
         [FromBody] UpdateRoomRequest request,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         var result = await this.roomService.UpdateRoomAsync(roomId, request, cancellationToken);
 
         return result.IsSuccess ? this.Ok(result.Value) : result.ToErrorResult(this);
