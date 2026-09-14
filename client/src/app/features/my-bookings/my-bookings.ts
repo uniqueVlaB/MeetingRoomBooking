@@ -21,8 +21,23 @@ export class MyBookingsComponent {
   protected readonly pendingBookingId = signal<string | null>(null);
   protected readonly error = signal<string | null>(null);
 
+  /**
+   * Whether the last load failed.
+   *
+   * An empty list and a failed request are the same value here, and they mean opposite things.
+   * Without this the screen answers a network failure with "You have no bookings", which is both
+   * wrong and alarming to somebody who knows they have several.
+   */
+  protected readonly loadFailed = signal(false);
+
   constructor() {
     void this.load();
+  }
+
+  /** Reloads after a failed load. */
+  protected async retry(): Promise<void> {
+    this.error.set(null);
+    await this.load();
   }
 
   /** Formats "09:00:00" as "09:00". */
@@ -54,8 +69,10 @@ export class MyBookingsComponent {
 
     try {
       this.bookings.set(await this.bookingsApi.listMine());
+      this.loadFailed.set(false);
     } catch (error) {
       this.error.set(describeError(error));
+      this.loadFailed.set(true);
     } finally {
       this.loading.set(false);
     }

@@ -59,22 +59,39 @@ function bookingFor(date: string): Booking {
   };
 }
 
+/** One schedule request the test has not answered yet. */
+interface Pending {
+  date: string;
+  resolve: (schedule: Schedule) => void;
+  reject: (error: unknown) => void;
+}
+
 /** A rooms client whose schedule responses the test resolves by hand. */
 class FakeRoomsService {
-  readonly pending: { date: string; resolve: (schedule: Schedule) => void }[] = [];
+  readonly pending: Pending[] = [];
 
   getSchedule(_roomId: string, date: string): Promise<Schedule> {
-    return new Promise<Schedule>((resolve) => {
-      this.pending.push({ date, resolve });
+    return new Promise<Schedule>((resolve, reject) => {
+      this.pending.push({ date, resolve, reject });
     });
   }
 
   /** Resolves the request that asked for a date. */
   settle(date: string): void {
+    this.take(date).resolve(scheduleFor(date));
+  }
+
+  /** Fails the request that asked for a date, as a server or network error would. */
+  fail(date: string): void {
+    this.take(date).reject(new Error('unreachable'));
+  }
+
+  /** Removes and returns the pending request for a date. */
+  private take(date: string): Pending {
     const index = this.pending.findIndex((request) => request.date === date);
     const [request] = this.pending.splice(index, 1);
 
-    request.resolve(scheduleFor(date));
+    return request;
   }
 }
 
@@ -93,9 +110,22 @@ class FakeBookingsService {
 class SilentHubService {
   readonly slotBooked$ = new Subject<Booking>();
   readonly slotReleased$ = new Subject<Booking>();
+
+  /** Fires when the hub has dropped and rejoined its group; the component must re-read. */
+  readonly rejoined$ = new Subject<void>();
+
+  readonly connectionState = signal<'connected' | 'reconnecting' | 'offline'>('offline');
   readonly isConnected = signal(false);
 
+  /** Groups left, so the test can prove the component stops watching when it goes away. */
+  unwatched = 0;
+
   watch(): Promise<void> {
+    return Promise.resolve();
+  }
+
+  unwatch(): Promise<void> {
+    this.unwatched += 1;
     return Promise.resolve();
   }
 }
@@ -106,6 +136,7 @@ interface Internals {
   schedule: () => Schedule | null;
   slots: () => Schedule['slots'];
   loading: () => boolean;
+  loadFailed: () => boolean;
   book: (slot: Schedule['slots'][number]) => Promise<void>;
   cancel: (slot: Schedule['slots'][number]) => Promise<void>;
 }
@@ -122,9 +153,11 @@ describe('ScheduleComponent', () => {
   let fixture: ComponentFixture<ScheduleComponent>;
   let component: Internals;
   let rooms: FakeRoomsService;
+  let hub: SilentHubService;
 
   beforeEach(async () => {
     rooms = new FakeRoomsService();
+    hub = new SilentHubService();
 
     await TestBed.configureTestingModule({
       imports: [ScheduleComponent],
@@ -135,7 +168,7 @@ describe('ScheduleComponent', () => {
         provideRouter([]),
         { provide: RoomsService, useValue: rooms },
         { provide: BookingsService, useValue: new FakeBookingsService() },
-        { provide: BookingHubService, useValue: new SilentHubService() },
+        { provide: BookingHubService, useValue: hub },
         {
           provide: AuthService,
           useValue: { session: signal({ userId: 'user-1' }), isAdmin: () => false },
@@ -211,5 +244,69 @@ describe('ScheduleComponent', () => {
 
     expect(released.isBooked).toBe(false);
     expect(released.bookingId).toBeNull();
+  });
+
+  it('re-reads the schedule after the hub rejoins its group', async () => {
+    component.date.set('2026-09-20');
+    await fixture.whenStable();
+
+    rooms.settle('2026-09-20');
+    await fixture.whenStable();
+
+    // Somebody else books this slot while the connection is down, so the broadcast never arrives.
+    expect(component.slots()[0].isBooked).toBe(false);
+
+    // Ignore the load for today that the component fires on arrival, so what is left is only what
+    // the rejoin causes.
+    rooms.pending.length = 0;
+
+    hub.rejoined$.next();
+    await fixture.whenStable();
+
+    // Rejoining restores the flow of updates but recovers nothing missed, so the only honest move
+    // is to ask the server again.
+    expect(rooms.pending).toHaveLength(1);
+    expect(rooms.pending[0].date).toBe('2026-09-20');
+  });
+
+  it('reports a failed load as a failure rather than as an empty room', async () => {
+    component.date.set('2026-09-20');
+    await fixture.whenStable();
+
+    rooms.fail('2026-09-20');
+    await fixture.whenStable();
+
+    // Both leave the component holding no slots. Telling them apart is what stops the screen
+    // answering a dead network with "This room has no bookable slots."
+    expect(component.loadFailed()).toBe(true);
+    expect(component.schedule()).toBeNull();
+    expect(component.loading()).toBe(false);
+  });
+
+  it('stops showing the previous day while the next one loads', async () => {
+    component.date.set('2026-09-20');
+    await fixture.whenStable();
+
+    rooms.settle('2026-09-20');
+    await fixture.whenStable();
+
+    expect(component.schedule()?.date).toBe('2026-09-20');
+
+    component.date.set('2026-09-21');
+    await fixture.whenStable();
+
+    // The template hides the grid whenever a load is in flight. Leaving the previous day visible
+    // would offer a Cancel button carrying that day's booking id under a picker showing the next.
+    expect(component.loading()).toBe(true);
+  });
+
+  it('leaves the watched group when the view goes away', async () => {
+    expect(hub.unwatched).toBe(0);
+
+    fixture.destroy();
+
+    // The connection is shared and stays open; staying in the group would have the server fan
+    // messages out to a page with nothing left to render them.
+    expect(hub.unwatched).toBe(1);
   });
 });

@@ -32,6 +32,15 @@ export class AdminComponent {
   protected readonly busy = signal(false);
   protected readonly notice = signal<Notice | null>(null);
 
+  /**
+   * Whether the last load failed.
+   *
+   * Both panels render from lists that are empty before a load and empty after a failed one. Told
+   * apart here so a failure does not present itself as "No rooms yet." to an administrator whose
+   * catalogue is full.
+   */
+  protected readonly loadFailed = signal(false);
+
   protected readonly name = signal('');
   protected readonly location = signal('');
   protected readonly capacity = signal(6);
@@ -167,11 +176,19 @@ export class AdminComponent {
 
       this.rooms.set(rooms);
       this.bookings.set(bookings);
+      this.loadFailed.set(false);
     } catch (error) {
       this.notice.set(failure(describeError(error)));
+      this.loadFailed.set(true);
     } finally {
       this.loading.set(false);
     }
+  }
+
+  /** Reloads rooms and bookings after a failed load. */
+  protected async retry(): Promise<void> {
+    this.notice.set(null);
+    await this.load();
   }
 }
 

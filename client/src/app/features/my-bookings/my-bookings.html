@@ -10,7 +10,13 @@
 }
 
 @if (loading()) {
-  <p class="muted">Loading…</p>
+  <p class="muted" role="status" aria-live="polite">Loading…</p>
+} @else if (loadFailed()) {
+  <!-- Never claim the list is empty on the strength of a request that failed. -->
+  <p class="muted">
+    Your bookings could not be loaded.
+    <button type="button" class="link" (click)="retry()">Try again</button>
+  </p>
 } @else if (bookings().length === 0) {
   <p class="muted">You have no bookings. <a routerLink="/rooms">Find a room</a>.</p>
 } @else {
@@ -26,11 +32,16 @@
           booking.roomName
         }}</a>
 
-        @if (pendingBookingId() === booking.id) {
-          <span class="muted">Cancelling…</span>
-        } @else {
-          <button type="button" class="ghost" (click)="cancel(booking)">Cancel</button>
-        }
+        <!-- Kept mounted while pending, so the button the user activated keeps their focus. -->
+        <button
+          type="button"
+          class="ghost"
+          [disabled]="pendingBookingId() === booking.id"
+          [attr.aria-busy]="pendingBookingId() === booking.id"
+          (click)="cancel(booking)"
+        >
+          {{ pendingBookingId() === booking.id ? 'Cancelling…' : 'Cancel' }}
+        </button>
       </li>
     }
   </ul>
