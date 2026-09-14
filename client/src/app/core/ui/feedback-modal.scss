@@ -1,0 +1,62 @@
+// <dialog>'s own backdrop pseudo-element is themeable, but the click target it needs for
+// click-outside-to-close is the dialog element itself, which is why the padding that centres the
+// card lives here rather than on ::backdrop.
+.feedback-dialog {
+  padding: 0;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  max-width: min(32rem, calc(100vw - 2rem));
+  width: 100%;
+
+  &::backdrop {
+    background: rgb(0 0 0 / 45%);
+  }
+
+  &[open] {
+    display: grid;
+  }
+}
+
+.card {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 25%);
+}
+
+header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+
+  h2 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 650;
+  }
+
+  button {
+    padding: 0.25rem 0.55rem;
+    line-height: 1;
+  }
+}
+
+// pre-wrap: the note is plain text, written with its own line breaks, and those are exactly what
+// this is supposed to preserve -- a browser's default paragraph collapses them into one run-on line.
+.notes {
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+  border-radius: 8px;
+  background: var(--surface-raised);
+  color: var(--text);
+  font-size: 0.92rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  max-height: 60vh;
+  overflow-y: auto;
+}

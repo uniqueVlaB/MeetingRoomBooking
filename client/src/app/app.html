@@ -2,33 +2,78 @@
   The first thing a keyboard user reaches, and invisible until then. Without it every page begins
   with the brand and up to four navigation links to tab past before reaching anything on the page.
 -->
-<a class="skip-link" href="#main-content">Skip to content</a>
+<a class="skip-link" href="#main-content">{{ i18n.t('shell.skipLink') }}</a>
 
 <header class="app-header">
   <a class="brand" routerLink="/rooms">
     <span class="brand-mark" aria-hidden="true">▦</span>
-    Meeting Rooms
+    {{ i18n.t('shell.brand') }}
   </a>
 
   @if (auth.isAuthenticated()) {
-    <nav class="nav" aria-label="Main">
-      <a routerLink="/rooms" routerLinkActive="active">Rooms</a>
-      <a routerLink="/my-bookings" routerLinkActive="active">My bookings</a>
+    <nav class="nav" [attr.aria-label]="i18n.t('shell.nav.ariaLabel')">
+      <a routerLink="/rooms" routerLinkActive="active">{{ i18n.t('shell.nav.rooms') }}</a>
+      <a routerLink="/my-bookings" routerLinkActive="active">{{
+        i18n.t('shell.nav.myBookings')
+      }}</a>
       @if (auth.isAdmin()) {
-        <a routerLink="/admin" routerLinkActive="active">Admin</a>
+        <a routerLink="/admin" routerLinkActive="active">{{ i18n.t('shell.nav.admin') }}</a>
       }
     </nav>
-
-    <div class="account">
-      <span class="who">
-        {{ auth.displayName() }}
-        @if (auth.isAdmin()) {
-          <span class="badge">Admin</span>
-        }
-      </span>
-      <button type="button" class="ghost" (click)="signOut()">Sign out</button>
-    </div>
   }
+
+  <div class="toolbar">
+    <!-- Language: a switch rather than a select, so the current choice reads at a glance. -->
+    <div class="segmented" role="group" [attr.aria-label]="i18n.t('shell.locale.ariaLabel')">
+      @for (locale of locales; track locale) {
+        <button
+          type="button"
+          [class.active]="i18n.locale() === locale"
+          [attr.aria-pressed]="i18n.locale() === locale"
+          (click)="i18n.setLocale(locale)"
+        >
+          {{ localeName(locale) }}
+        </button>
+      }
+    </div>
+
+    <!-- Theme: auto (follows the system), or an explicit light/dark override. -->
+    <div class="segmented" role="group" [attr.aria-label]="i18n.t('shell.theme.ariaLabel')">
+      @for (mode of themes; track mode) {
+        <button
+          type="button"
+          [class.active]="theme.preference() === mode"
+          [attr.aria-pressed]="theme.preference() === mode"
+          (click)="theme.setPreference(mode)"
+        >
+          {{ i18n.t(themeLabel(mode)) }}
+        </button>
+      }
+    </div>
+
+    <button
+      type="button"
+      class="feedback-button"
+      [attr.aria-label]="i18n.t('shell.feedback.ariaLabel')"
+      (click)="openFeedback()"
+    >
+      {{ i18n.t('shell.feedback.button') }}
+    </button>
+
+    @if (auth.isAuthenticated()) {
+      <div class="account">
+        <span class="who">
+          {{ auth.displayName() }}
+          @if (auth.isAdmin()) {
+            <span class="badge">{{ i18n.t('shell.adminBadge') }}</span>
+          }
+        </span>
+        <button type="button" class="ghost" (click)="signOut()">
+          {{ i18n.t('shell.signOut') }}
+        </button>
+      </div>
+    }
+  </div>
 </header>
 
 <!--
@@ -38,3 +83,5 @@
 <main #main class="app-main" id="main-content" tabindex="-1">
   <router-outlet />
 </main>
+
+<app-feedback-modal #feedbackModal />

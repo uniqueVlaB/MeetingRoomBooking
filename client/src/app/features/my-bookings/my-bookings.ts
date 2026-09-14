@@ -4,15 +4,26 @@ import { BookingsService } from '../../core/api/bookings.service';
 import { formatDayLong, isPastDay, relativeDay } from '../../core/format/date';
 import { formatSlotTime } from '../../core/format/time';
 import { describeError } from '../../core/http/describe-error';
+import { TranslationService } from '../../core/i18n/translation.service';
+import { TranslationKey } from '../../core/i18n/translations';
 import { Booking } from '../../core/models';
+
+/** The translation key for each day-relative code `relativeDay()` can return. */
+const RELATIVE_DAY_LABELS: Record<'today' | 'tomorrow' | 'yesterday', TranslationKey> = {
+  today: 'date.today',
+  tomorrow: 'date.tomorrow',
+  yesterday: 'date.yesterday',
+};
 
 /** One day's worth of the user's bookings, as the list is rendered. */
 interface BookingDay {
   date: string;
   /** The date written out, e.g. "Sunday, 20 September 2026". */
   label: string;
-  /** "Today", "Tomorrow" or "Yesterday" where one of those applies. */
-  relative: string | null;
+  /** The translation key for "Today"/"Tomorrow"/"Yesterday" where one of those applies. */
+  relative: TranslationKey | null;
+  /** Whether "today" is the relative label, so the chip can be highlighted like elsewhere in the app. */
+  isToday: boolean;
   /** Whether the day has gone, so it can be shown as a record rather than as something upcoming. */
   past: boolean;
   bookings: Booking[];
@@ -28,6 +39,8 @@ interface BookingDay {
 })
 export class MyBookingsComponent {
   private readonly bookingsApi = inject(BookingsService);
+
+  protected readonly i18n = inject(TranslationService);
 
   protected readonly bookings = signal<Booking[]>([]);
   protected readonly loading = signal(true);
@@ -67,13 +80,39 @@ export class MyBookingsComponent {
       }
     }
 
-    return [...grouped].map(([date, bookings]) => ({
-      date,
-      label: formatDayLong(date),
-      relative: relativeDay(date),
-      past: isPastDay(date),
-      bookings,
-    }));
+    const locale = this.i18n.dateLocale();
+
+    return [...grouped].map(([date, bookings]) => {
+      const code = relativeDay(date);
+
+      return {
+        date,
+        label: formatDayLong(date, locale),
+        relative: code ? RELATIVE_DAY_LABELS[code] : null,
+        isToday: code === 'today',
+        past: isPastDay(date),
+        bookings,
+      };
+    });
+  });
+
+  /**
+   * The subtitle summarising how many slots the user holds, across how many days.
+   *
+   * Composed from two independently-pluralised phrases rather than one template, because "slots"
+   * agrees with the slot count and "days" agrees with the day count -- two different numbers, each
+   * needing its own grammatical form (Ukrainian more visibly than English, with three forms rather
+   * than two).
+   */
+  protected readonly subtitle = computed(() => {
+    if (this.loading() || this.loadFailed() || this.bookings().length === 0) {
+      return this.i18n.t('myBookings.subtitleDefault');
+    }
+
+    return this.i18n.t('myBookings.subtitle', {
+      slots: this.i18n.plural('myBookings.slotsPhrase', this.bookings().length),
+      days: this.i18n.plural('myBookings.daysPhrase', this.days().length),
+    });
   });
 
   constructor() {
@@ -102,7 +141,7 @@ export class MyBookingsComponent {
     } catch (error) {
       // The server's own explanation: "that booking has already been cancelled" and "you can only
       // cancel your own bookings" are different problems with different answers.
-      this.error.set(describeError(error));
+      this.error.set(describeError(error, (key, params) => this.i18n.t(key, params)));
       await this.load();
     } finally {
       this.pendingBookingId.set(null);
@@ -117,7 +156,7 @@ export class MyBookingsComponent {
       this.bookings.set(await this.bookingsApi.listMine());
       this.loadFailed.set(false);
     } catch (error) {
-      this.error.set(describeError(error));
+      this.error.set(describeError(error, (key, params) => this.i18n.t(key, params)));
       this.loadFailed.set(true);
     } finally {
       this.loading.set(false);

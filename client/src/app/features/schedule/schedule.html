@@ -1,10 +1,10 @@
 <nav class="crumbs">
-  <a routerLink="/rooms">← All rooms</a>
+  <a routerLink="/rooms">{{ i18n.t('schedule.backToRooms') }}</a>
 </nav>
 
 <header class="page-head">
   <div>
-    <h1>{{ schedule()?.roomName ?? 'Schedule' }}</h1>
+    <h1>{{ schedule()?.roomName ?? i18n.t('schedule.fallbackTitle') }}</h1>
 
     <!--
       The date the user is looking at, spelled out. It used to appear only as "2026-09-20" inside
@@ -13,8 +13,8 @@
     -->
     <p class="subtitle day">
       {{ dayLabel() }}
-      @if (dayRelative(); as label) {
-        <span class="chip" [class.now]="isToday()">{{ label }}</span>
+      @if (dayRelative(); as key) {
+        <span class="chip" [class.now]="isToday()">{{ i18n.t(key) }}</span>
       }
     </p>
   </div>
@@ -33,13 +33,13 @@
     <span class="dot" aria-hidden="true"></span>
     @switch (connection()) {
       @case ('connected') {
-        Live
+        {{ i18n.t('schedule.live.connected') }}
       }
       @case ('reconnecting') {
-        Reconnecting…
+        {{ i18n.t('schedule.live.reconnecting') }}
       }
       @default {
-        Offline
+        {{ i18n.t('schedule.live.offline') }}
       }
     }
   </span>
@@ -47,23 +47,46 @@
 
 @if (connection() === 'offline') {
   <p class="notice error" role="alert">
-    Live updates have stopped, so other people’s changes will not appear.
-    <button type="button" class="link" (click)="reconnect()">Reconnect</button>
+    {{ i18n.t('schedule.offlineNotice') }}
+    <button type="button" class="link" (click)="reconnect()">
+      {{ i18n.t('schedule.reconnect') }}
+    </button>
   </p>
 }
 
 <div class="date-bar">
   <div class="stepper">
-    <button type="button" class="ghost" (click)="shiftDate(-1)" aria-label="Previous day">‹</button>
-    <input type="date" [ngModel]="date()" (ngModelChange)="date.set($event)" aria-label="Date" />
-    <button type="button" class="ghost" (click)="shiftDate(1)" aria-label="Next day">›</button>
+    <button
+      type="button"
+      class="ghost"
+      (click)="shiftDate(-1)"
+      [attr.aria-label]="i18n.t('schedule.prevDay')"
+    >
+      ‹
+    </button>
+    <input
+      type="date"
+      [ngModel]="date()"
+      (ngModelChange)="date.set($event)"
+      [attr.aria-label]="i18n.t('schedule.dateInput.ariaLabel')"
+    />
+    <button
+      type="button"
+      class="ghost"
+      (click)="shiftDate(1)"
+      [attr.aria-label]="i18n.t('schedule.nextDay')"
+    >
+      ›
+    </button>
   </div>
 
   <!--
     Disabled rather than hidden, so the control does not appear and disappear as the user steps
     through days -- and so its disabled state answers "which day am I on?" without being read.
   -->
-  <button type="button" class="ghost" [disabled]="isToday()" (click)="goToToday()">Today</button>
+  <button type="button" class="ghost" [disabled]="isToday()" (click)="goToToday()">
+    {{ i18n.t('schedule.today') }}
+  </button>
 </div>
 
 @if (isPast() && !loading()) {
@@ -71,7 +94,7 @@
     A past day's grid is indistinguishable from a future one, and the server will refuse a booking
     on it. Saying so beforehand is better than letting the user find out by being rejected.
   -->
-  <p class="notice" role="status">This day has already passed; it is shown for reference.</p>
+  <p class="notice" role="status">{{ i18n.t('schedule.pastNotice') }}</p>
 }
 
 @if (notice(); as message) {
@@ -96,7 +119,7 @@
     Placeholder rows rather than a line of text: a schedule is a fixed-height list, so standing in
     for it keeps the page from collapsing and snapping back on every date change.
   -->
-  <ul class="slots skeleton" role="status" aria-label="Loading schedule">
+  <ul class="slots skeleton" role="status" [attr.aria-label]="i18n.t('schedule.loading.ariaLabel')">
     @for (row of skeletonRows; track row) {
       <li class="slot" aria-hidden="true">
         <span class="ghost-bar time"></span>
@@ -107,21 +130,21 @@
   </ul>
 } @else if (loadFailed()) {
   <div class="empty">
-    <p class="empty-title">The schedule could not be loaded.</p>
-    <p class="empty-detail">The server did not answer, or the session has expired.</p>
-    <button type="button" class="primary" (click)="retry()">Try again</button>
+    <p class="empty-title">{{ i18n.t('schedule.loadError.title') }}</p>
+    <p class="empty-detail">{{ i18n.t('schedule.loadError.detail') }}</p>
+    <button type="button" class="primary" (click)="retry()">{{ i18n.t('common.tryAgain') }}</button>
   </div>
 } @else if (slots().length === 0) {
   <div class="empty">
-    <p class="empty-title">This room has no bookable slots.</p>
-    <p class="empty-detail">An administrator sets a room’s daily slots when creating it.</p>
+    <p class="empty-title">{{ i18n.t('schedule.empty.title') }}</p>
+    <p class="empty-detail">{{ i18n.t('schedule.empty.detail') }}</p>
   </div>
 } @else {
   <p class="availability">
     <span class="meter" aria-hidden="true">
       <span class="meter-fill" [style.width.%]="freePercent()"></span>
     </span>
-    <span>{{ freeCount() }} of {{ slots().length }} slots free</span>
+    <span>{{ i18n.t('schedule.freeSummary', { free: freeCount(), total: slots().length }) }}</span>
   </p>
 
   <ul class="slots">
@@ -131,12 +154,14 @@
 
         <span class="status">
           @if (slot.isBooked) {
-            <span class="tag">{{ isMine(slot) ? 'Booked by you' : 'Booked' }}</span>
+            <span class="tag">{{
+              isMine(slot) ? i18n.t('schedule.bookedByYou') : i18n.t('schedule.booked')
+            }}</span>
             @if (!isMine(slot)) {
               <span class="holder">{{ slot.bookedByDisplayName }}</span>
             }
           } @else {
-            <span class="tag free">Free</span>
+            <span class="tag free">{{ i18n.t('schedule.free') }}</span>
           }
         </span>
 
@@ -154,7 +179,11 @@
               [attr.aria-busy]="pendingSlotId() === slot.timeSlotId"
               (click)="book(slot)"
             >
-              {{ pendingSlotId() === slot.timeSlotId ? 'Working…' : 'Book' }}
+              {{
+                pendingSlotId() === slot.timeSlotId
+                  ? i18n.t('common.working')
+                  : i18n.t('schedule.book')
+              }}
             </button>
           } @else if (canCancel(slot)) {
             <button
@@ -164,7 +193,11 @@
               [attr.aria-busy]="pendingSlotId() === slot.timeSlotId"
               (click)="cancel(slot)"
             >
-              {{ pendingSlotId() === slot.timeSlotId ? 'Working…' : 'Cancel' }}
+              {{
+                pendingSlotId() === slot.timeSlotId
+                  ? i18n.t('common.working')
+                  : i18n.t('common.cancel')
+              }}
             </button>
           }
         </span>

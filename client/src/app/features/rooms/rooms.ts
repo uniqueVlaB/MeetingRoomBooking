@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { RoomsService } from '../../core/api/rooms.service';
 import { describeError } from '../../core/http/describe-error';
+import { TranslationService } from '../../core/i18n/translation.service';
 import { Room } from '../../core/models';
 
 /** Above this many rooms, scanning the grid by eye stops being the quickest way to find one. */
@@ -18,6 +19,8 @@ const FILTER_THRESHOLD = 6;
 })
 export class RoomsComponent {
   private readonly roomsApi = inject(RoomsService);
+
+  protected readonly i18n = inject(TranslationService);
 
   protected readonly rooms = signal<Room[]>([]);
   protected readonly loading = signal(true);
@@ -79,7 +82,7 @@ export class RoomsComponent {
     } catch (error) {
       // The server's own explanation, not a canned sentence: "your session has expired" and "the
       // server could not be reached" call for different reactions from the user.
-      this.error.set(describeError(error));
+      this.error.set(describeError(error, (key, params) => this.i18n.t(key, params)));
     } finally {
       this.loading.set(false);
     }

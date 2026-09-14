@@ -24,9 +24,18 @@ import {
 } from '../../core/format/date';
 import { formatSlotTime } from '../../core/format/time';
 import { describeError } from '../../core/http/describe-error';
+import { TranslationService } from '../../core/i18n/translation.service';
+import { TranslationKey } from '../../core/i18n/translations';
 import { Booking, Schedule, ScheduleSlot } from '../../core/models';
 import { BookingHubService } from '../../core/realtime/booking-hub.service';
 import { Notice, failure, info } from '../../core/ui/notice';
+
+/** The translation key for each day-relative code `relativeDay()` can return. */
+const RELATIVE_DAY_LABELS: Record<'today' | 'tomorrow' | 'yesterday', TranslationKey> = {
+  today: 'date.today',
+  tomorrow: 'date.tomorrow',
+  yesterday: 'date.yesterday',
+};
 
 /**
  * A room's schedule for one date: which slots are free, which are taken, and by whom.
@@ -49,6 +58,8 @@ export class ScheduleComponent {
   private readonly bookingsApi = inject(BookingsService);
   private readonly hub = inject(BookingHubService);
   private readonly auth = inject(AuthService);
+
+  protected readonly i18n = inject(TranslationService);
 
   /**
    * Identifies the most recent load.
@@ -116,10 +127,14 @@ export class ScheduleComponent {
   });
 
   /** The date being shown, written out: "Sunday, 20 September 2026". */
-  protected readonly dayLabel = computed(() => formatDayLong(this.date()));
+  protected readonly dayLabel = computed(() => formatDayLong(this.date(), this.i18n.dateLocale()));
 
-  /** "Today", "Tomorrow" or "Yesterday" when the date is one of them, else null. */
-  protected readonly dayRelative = computed(() => relativeDay(this.date()));
+  /** The translation key for "Today"/"Tomorrow"/"Yesterday" when the date is one of them, else null. */
+  protected readonly dayRelative = computed(() => {
+    const code = relativeDay(this.date());
+
+    return code ? RELATIVE_DAY_LABELS[code] : null;
+  });
 
   /** Whether the view is already on today, so the shortcut back has nothing to do. */
   protected readonly isToday = computed(() => this.date() === todayIso());
@@ -146,9 +161,7 @@ export class ScheduleComponent {
         // A hub that will not connect is not fatal: the schedule still loads, this user's own
         // actions still show up, and the page can be refreshed by hand. Saying so is better than
         // pretending the page is live when it is not.
-        this.notice.set(
-          failure('Live updates are unavailable; reload to see other people’s changes.'),
-        );
+        this.notice.set(failure(this.i18n.t('schedule.hubUnavailable')));
       });
     });
 
@@ -184,7 +197,7 @@ export class ScheduleComponent {
       // it is after an automatic reconnect.
       await this.load(this.roomId(), this.date());
     } catch (error) {
-      this.notice.set(failure(describeError(error)));
+      this.notice.set(failure(this.describeError(error)));
     }
   }
 
@@ -227,7 +240,12 @@ export class ScheduleComponent {
       this.applyBooked(booking);
 
       this.notice.set(
-        info(`Booked ${this.formatTime(slot.startTime)}–${this.formatTime(slot.endTime)}.`),
+        info(
+          this.i18n.t('schedule.bookedNotice', {
+            start: this.formatTime(slot.startTime),
+            end: this.formatTime(slot.endTime),
+          }),
+        ),
       );
     } catch (error) {
       // 409 is the expected outcome of losing a race, not a malfunction, so it gets a plain
@@ -235,11 +253,7 @@ export class ScheduleComponent {
       const conflict = error instanceof HttpErrorResponse && error.status === 409;
 
       this.notice.set(
-        failure(
-          conflict
-            ? 'Somebody else booked that slot a moment before you. The schedule has been updated.'
-            : describeError(error),
-        ),
+        failure(conflict ? this.i18n.t('schedule.conflictNotice') : this.describeError(error)),
       );
 
       if (conflict) {
@@ -267,9 +281,9 @@ export class ScheduleComponent {
       // As in book(): do not depend on the broadcast to show this user their own action.
       this.releaseSlot(slot.timeSlotId);
 
-      this.notice.set(info('Booking cancelled; the slot is free again.'));
+      this.notice.set(info(this.i18n.t('schedule.cancelledNotice')));
     } catch (error) {
-      this.notice.set(failure(describeError(error)));
+      this.notice.set(failure(this.describeError(error)));
       await this.load(this.roomId(), this.date());
     } finally {
       this.pendingSlotId.set(null);
@@ -284,6 +298,11 @@ export class ScheduleComponent {
   /** Returns to today, which is otherwise several clicks away once the user has wandered. */
   protected goToToday(): void {
     this.date.set(todayIso());
+  }
+
+  /** Turns a failed request into the user's current language. */
+  private describeError(error: unknown): string {
+    return describeError(error, (key, params) => this.i18n.t(key, params));
   }
 
   /** Loads the schedule for a room and date, discarding a response newer work has superseded. */
@@ -303,7 +322,7 @@ export class ScheduleComponent {
       if (token === this.loadToken) {
         this.schedule.set(null);
         this.loadFailed.set(true);
-        this.notice.set(failure(describeError(error)));
+        this.notice.set(failure(this.describeError(error)));
       }
     } finally {
       // Only the newest load owns the spinner; an older one finishing must not clear it while the

@@ -27,8 +27,18 @@
   --danger-soft: #fdecea;
 }
 
+// Dark values are defined twice on purpose: once behind the system preference, once behind an
+// explicit choice, because the two must be independently overridable in either direction.
+//
+// - `auto` (no [data-theme] attribute) follows the system: the media query alone decides.
+// - An explicit `light` must win even on a dark system, so the media query block is guarded with
+//   :not([data-theme="light"]) rather than applying unconditionally.
+// - An explicit `dark` must win even on a light system, so the same variables are repeated behind
+//   [data-theme="dark"], which a light system's media query would otherwise never trigger.
+//
+// ThemeService is what stamps [data-theme] on <html> — see core/theme/theme.service.ts.
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme='light']) {
     color-scheme: dark;
 
     --bg: #14171a;
@@ -48,6 +58,27 @@
     --danger: #f85149;
     --danger-soft: #3a1d1b;
   }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg: #14171a;
+  --surface: #1b1f24;
+  --surface-raised: #22272e;
+  --border: #30363d;
+
+  --text: #e6edf3;
+  --text-muted: #9aa5b1;
+  --text-faint: #6e7781;
+
+  --accent: #58a6ff;
+  --accent-hover: #79b8ff;
+  --accent-soft: #14304f;
+
+  --ok: #3fb950;
+  --danger: #f85149;
+  --danger-soft: #3a1d1b;
 }
 
 * {
