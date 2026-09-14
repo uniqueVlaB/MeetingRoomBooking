@@ -1,0 +1,26 @@
+<!-- Closing on an outside click is wired up in code -- see ngAfterViewInit -- not with a template
+     binding here; see the comment on it for why. -->
+<dialog #dialog class="feedback-dialog">
+  <div class="card">
+    <header>
+      <h2>{{ i18n.t('shell.feedback.title') }}</h2>
+      <button
+        type="button"
+        class="ghost"
+        [attr.aria-label]="i18n.t('shell.feedback.close')"
+        (click)="close()"
+      >
+        ✕
+      </button>
+    </header>
+
+    <textarea
+      [placeholder]="i18n.t('shell.feedback.placeholder')"
+      [ngModel]="text()"
+      (ngModelChange)="text.set($event)"
+      rows="10"
+    ></textarea>
+
+    <p class="hint">{{ i18n.t('shell.feedback.hint') }}</p>
+  </div>
+</dialog>
