@@ -18,17 +18,9 @@ form {
   margin-top: 1.25rem;
 }
 
+// Layout only; the link appearance itself is shared in styles.scss.
 .link {
   display: block;
   width: 100%;
   margin-top: 1rem;
-  background: none;
-  border: none;
-  color: var(--accent);
-  font-size: 0.9rem;
-  cursor: pointer;
-
-  &:hover {
-    text-decoration: underline;
-  }
 }

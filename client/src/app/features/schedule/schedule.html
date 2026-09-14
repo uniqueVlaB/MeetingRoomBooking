@@ -6,21 +6,46 @@
   <div>
     <h1>{{ schedule()?.roomName ?? 'Schedule' }}</h1>
     @if (schedule(); as loaded) {
-      <p class="subtitle">
-        {{ freeCount() }} of {{ slots().length }} slots free on {{ loaded.date }}
-      </p>
+      @if (!loading()) {
+        <p class="subtitle">
+          {{ freeCount() }} of {{ slots().length }} slots free on {{ loaded.date }}
+        </p>
+      }
     }
   </div>
 
+  <!--
+    Announced, not just coloured: losing live updates is the one state change the user did not ask
+    for, and the page looks identical either way.
+  -->
   <span
     class="live"
-    [class.on]="isLive()"
-    [title]="isLive() ? 'Live updates connected' : 'Not receiving live updates'"
+    [class.on]="connection() === 'connected'"
+    [class.pending]="connection() === 'reconnecting'"
+    role="status"
+    aria-live="polite"
   >
     <span class="dot" aria-hidden="true"></span>
-    {{ isLive() ? 'Live' : 'Offline' }}
+    @switch (connection()) {
+      @case ('connected') {
+        Live
+      }
+      @case ('reconnecting') {
+        Reconnecting…
+      }
+      @default {
+        Offline
+      }
+    }
   </span>
 </header>
+
+@if (connection() === 'offline') {
+  <p class="notice error" role="alert">
+    Live updates have stopped, so other people’s changes will not appear.
+    <button type="button" class="link" (click)="reconnect()">Reconnect</button>
+  </p>
+}
 
 <div class="date-bar">
   <button type="button" class="ghost" (click)="shiftDate(-1)" aria-label="Previous day">‹</button>
@@ -29,11 +54,29 @@
 </div>
 
 @if (notice(); as message) {
-  <p class="notice" [class.error]="message.kind === 'error'" role="status">{{ message.text }}</p>
+  <!--
+    The role follows the kind. A lost booking race is reported here, and announcing it politely
+    means a screen reader may never mention that the slot went to somebody else.
+  -->
+  @if (message.kind === 'error') {
+    <p class="notice error" role="alert">{{ message.text }}</p>
+  } @else {
+    <p class="notice" role="status">{{ message.text }}</p>
+  }
 }
 
-@if (loading() && !schedule()) {
-  <p class="muted">Loading schedule…</p>
+<!--
+  Loading wins over everything, including a schedule already in hand. Keeping the previous day on
+  screen while the next one loads shows availability that belongs to a date the picker is no longer
+  displaying -- and the Cancel button in those rows still carries the old day's booking id.
+-->
+@if (loading()) {
+  <p class="muted" role="status" aria-live="polite">Loading schedule…</p>
+} @else if (loadFailed()) {
+  <p class="muted">
+    The schedule could not be loaded.
+    <button type="button" class="link" (click)="retry()">Try again</button>
+  </p>
 } @else if (slots().length === 0) {
   <p class="muted">This room has no bookable slots.</p>
 } @else {
@@ -53,13 +96,32 @@
           }
         </span>
 
+        <!--
+          The button stays mounted while the request is in flight. Swapping it for a span destroys
+          the element the user's focus is on, and the replacement that arrives afterwards is a new
+          element, so a keyboard user is dropped to the top of the page mid-action.
+        -->
         <span class="action">
-          @if (pendingSlotId() === slot.timeSlotId) {
-            <span class="muted">Working…</span>
-          } @else if (!slot.isBooked) {
-            <button type="button" class="primary" (click)="book(slot)">Book</button>
+          @if (!slot.isBooked) {
+            <button
+              type="button"
+              class="primary"
+              [disabled]="pendingSlotId() === slot.timeSlotId"
+              [attr.aria-busy]="pendingSlotId() === slot.timeSlotId"
+              (click)="book(slot)"
+            >
+              {{ pendingSlotId() === slot.timeSlotId ? 'Working…' : 'Book' }}
+            </button>
           } @else if (canCancel(slot)) {
-            <button type="button" class="ghost" (click)="cancel(slot)">Cancel</button>
+            <button
+              type="button"
+              class="ghost"
+              [disabled]="pendingSlotId() === slot.timeSlotId"
+              [attr.aria-busy]="pendingSlotId() === slot.timeSlotId"
+              (click)="cancel(slot)"
+            >
+              {{ pendingSlotId() === slot.timeSlotId ? 'Working…' : 'Cancel' }}
+            </button>
           }
         </span>
       </li>

@@ -130,6 +130,18 @@ button {
     opacity: 0.55;
     cursor: not-allowed;
   }
+
+  // Inputs already had this; buttons and links were relying on the user agent's default ring, which
+  // against these backgrounds -- the accent-coloured primary in particular -- is close to invisible.
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
+
+a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .primary {
@@ -151,6 +163,21 @@ button {
   &:hover:not(:disabled) {
     border-color: var(--accent);
     color: var(--accent);
+  }
+}
+
+// A button that reads as a link, for an action offered inside a sentence -- "Try again" after a
+// failed load, or switching between signing in and registering. Shared rather than per-component
+// because view encapsulation would otherwise leave it styled on one screen and bare on the next.
+.link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    text-decoration: underline;
   }
 }
 

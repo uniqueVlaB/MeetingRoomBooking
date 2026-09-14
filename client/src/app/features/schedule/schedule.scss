@@ -41,6 +41,12 @@
   &.on .dot {
     background: var(--ok);
   }
+
+  // Distinct from both: updates are not arriving, but they are expected back. Showing the connected
+  // colour here is what lets a stale grid pass for a live one.
+  &.pending .dot {
+    background: var(--accent);
+  }
 }
 
 .date-bar {

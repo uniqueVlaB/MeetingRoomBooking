@@ -6,7 +6,12 @@
 </header>
 
 @if (notice(); as message) {
-  <p class="notice" [class.error]="message.kind === 'error'" role="status">{{ message.text }}</p>
+  <!-- The role follows the kind: a failed action announced politely can go unnoticed entirely. -->
+  @if (message.kind === 'error') {
+    <p class="notice error" role="alert">{{ message.text }}</p>
+  } @else {
+    <p class="notice" role="status">{{ message.text }}</p>
+  }
 }
 
 <section class="panel">
@@ -82,7 +87,12 @@
   <h2>Rooms</h2>
 
   @if (loading()) {
-    <p class="muted">Loading…</p>
+    <p class="muted" role="status" aria-live="polite">Loading…</p>
+  } @else if (loadFailed()) {
+    <p class="muted">
+      Rooms could not be loaded.
+      <button type="button" class="link" (click)="retry()">Try again</button>
+    </p>
   } @else if (rooms().length === 0) {
     <p class="muted">No rooms yet.</p>
   } @else {
@@ -119,7 +129,12 @@
   <h2>All bookings</h2>
 
   @if (loading()) {
-    <p class="muted">Loading…</p>
+    <p class="muted" role="status" aria-live="polite">Loading…</p>
+  } @else if (loadFailed()) {
+    <p class="muted">
+      Bookings could not be loaded.
+      <button type="button" class="link" (click)="retry()">Try again</button>
+    </p>
   } @else if (bookings().length === 0) {
     <p class="muted">Nothing is booked.</p>
   } @else {

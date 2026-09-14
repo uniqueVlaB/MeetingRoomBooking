@@ -2,6 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   computed,
   effect,
   inject,
@@ -64,14 +65,24 @@ export class ScheduleComponent {
   /** Whether a load is in flight. */
   protected readonly loading = signal(false);
 
+  /**
+   * Whether the last load failed.
+   *
+   * Tracked separately from the schedule being null, because the two mean opposite things to a
+   * reader: "nothing came back" and "this room has no slots" look identical in the data and must
+   * not look identical on screen. Without this the template answers a failed request with a
+   * confident "This room has no bookable slots."
+   */
+  protected readonly loadFailed = signal(false);
+
   /** The slot currently being booked or cancelled, so only that row shows a spinner. */
   protected readonly pendingSlotId = signal<string | null>(null);
 
   /** A message about the last action. */
   protected readonly notice = signal<Notice | null>(null);
 
-  /** Whether live updates are currently flowing. */
-  protected readonly isLive = this.hub.isConnected;
+  /** Whether live updates are flowing, recovering, or stopped. */
+  protected readonly connection = this.hub.connectionState;
 
   /** Slots in display order. */
   protected readonly slots = computed(() => this.schedule()?.slots ?? []);
@@ -106,6 +117,39 @@ export class ScheduleComponent {
     this.hub.slotReleased$
       .pipe(takeUntilDestroyed())
       .subscribe((booking) => this.applyReleased(booking));
+
+    // Rejoining the group restores the flow of updates but recovers none of the ones broadcast
+    // while the connection was down. Whatever is on screen was accurate before the drop and may be
+    // wrong now, so re-read it: the alternative is a grid that reports a taken slot as free under a
+    // green "Live" badge, which is precisely the failure reconnecting is supposed to prevent.
+    this.hub.rejoined$
+      .pipe(takeUntilDestroyed())
+      .subscribe(() => void this.load(this.roomId(), this.date()));
+
+    // Leaves the room+date group when this view goes away. The connection is shared and stays open,
+    // but the server should not fan messages out to a browser with nothing left to render them.
+    inject(DestroyRef).onDestroy(() => void this.hub.unwatch());
+  }
+
+  /** Reconnects after live updates have stopped, without reloading the page. */
+  protected async reconnect(): Promise<void> {
+    this.notice.set(null);
+
+    try {
+      await this.hub.watch(this.roomId(), this.date());
+
+      // The connection was down for an unknown stretch, so the grid is suspect for the same reason
+      // it is after an automatic reconnect.
+      await this.load(this.roomId(), this.date());
+    } catch (error) {
+      this.notice.set(failure(describeError(error)));
+    }
+  }
+
+  /** Reloads the schedule after a failed load. */
+  protected async retry(): Promise<void> {
+    this.notice.set(null);
+    await this.load(this.roomId(), this.date());
   }
 
   /** Whether a slot is held by the signed-in user, who may therefore cancel it. */
@@ -208,10 +252,12 @@ export class ScheduleComponent {
 
       if (token === this.loadToken) {
         this.schedule.set(schedule);
+        this.loadFailed.set(false);
       }
     } catch (error) {
       if (token === this.loadToken) {
         this.schedule.set(null);
+        this.loadFailed.set(true);
         this.notice.set(failure(describeError(error)));
       }
     } finally {
